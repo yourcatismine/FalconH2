@@ -85,7 +85,7 @@ messages:
     
     &fBanned on: &f%banned_on%
     &fReason: &f%reason% (%count%%ordinal% offense)
-    &fBan ID: &b
+    &fBan ID: &b#%id%
     
     &fExpires in: &f%time_left%
     

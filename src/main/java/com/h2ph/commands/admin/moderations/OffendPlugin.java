@@ -24,6 +24,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.io.BufferedReader;
@@ -420,13 +421,23 @@ public class OffendPlugin implements CommandExecutor, TabCompleter {
         boolean finalWipeData = wipeData;
         long finalExpiresAt = expiresAt;
 
+        DatabaseManager.BanInfo info = new DatabaseManager.BanInfo();
+        info.uuid = targetUUID.toString();
+        info.playerName = targetName;
+        info.id = banId;
+        info.reasonKey = reasonKey;
+        info.reason = displayReason;
+        info.count = newCount;
+        info.date = System.currentTimeMillis();
+        info.expire = expiresAt;
+        info.bannedBy = sender.getName();
+
         plugin.getSchedulerAdapter().runTask(() -> {
             if (finalWipeData)
                 wipePlayerData(target);
 
             if (target.isOnline()) {
-                String kickMsg = ChatColor.translateAlternateColorCodes('&',
-                        "&cYou have been banned.\n&fReason: " + finalDisplayReason);
+                String kickMsg = formatBanMessage(info);
                 ((Player) target).kickPlayer(kickMsg);
             }
 
@@ -452,17 +463,59 @@ public class OffendPlugin implements CommandExecutor, TabCompleter {
                     .replace("%reason%", finalDisplayReason)));
         });
 
-        DatabaseManager.BanInfo info = new DatabaseManager.BanInfo();
-        info.uuid = targetUUID.toString();
-        info.playerName = targetName;
-        info.id = banId;
-        info.reasonKey = reasonKey;
-        info.reason = displayReason;
-        info.count = newCount;
-        info.date = System.currentTimeMillis();
-        info.expire = expiresAt;
-        info.bannedBy = sender.getName();
         return info;
+    }
+
+    public String formatBanMessage(DatabaseManager.BanInfo info) {
+        if (info == null) {
+            return ChatColor.RED + "You are banned from this server.";
+        }
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+        String dateStr = sdf.format(new Date(info.date));
+
+        String ordinal = "th";
+        if (info.count == 1)
+            ordinal = "st";
+        else if (info.count == 2)
+            ordinal = "nd";
+        else if (info.count == 3)
+            ordinal = "rd";
+
+        String timeLeft;
+        if (info.expire == -1) {
+            timeLeft = "Permanent";
+        } else {
+            long diff = info.expire - System.currentTimeMillis();
+            long days = TimeUnit.MILLISECONDS.toDays(diff);
+            long hours = TimeUnit.MILLISECONDS.toHours(diff) % 24;
+            long mins = TimeUnit.MILLISECONDS.toMinutes(diff) % 60;
+
+            if (days > 0)
+                timeLeft = days + " day" + (days != 1 ? "s" : "");
+            else if (hours > 0)
+                timeLeft = hours + " hour" + (hours != 1 ? "s" : "");
+            else
+                timeLeft = mins + " minute" + (mins != 1 ? "s" : "");
+        }
+
+        String layout = getOffendConfig().getString("messages.ban_layout");
+
+        if (layout == null) {
+            layout = "&cYou are banned from this server!\n\n" +
+                    "&fBanned on: &f%banned_on%\n" +
+                    "&fReason: &f%reason%\n" +
+                    "&fBan ID: &b#%id%\n\n" +
+                    "&fExpires in: &f%time_left%\n\n" +
+                    "&7Appeal at :&f discord.gg/yourserver";
+        }
+
+        return ChatColor.translateAlternateColorCodes('&', layout
+                .replace("%banned_on%", dateStr)
+                .replace("%reason%", info.reason != null ? info.reason : "Banned")
+                .replace("%count%", String.valueOf(info.count))
+                .replace("%ordinal%", ordinal)
+                .replace("%id%", info.id != null ? info.id : "N/A")
+                .replace("%time_left%", timeLeft));
     }
 
     private long parseDuration(String str) {

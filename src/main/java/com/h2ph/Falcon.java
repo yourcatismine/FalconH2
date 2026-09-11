@@ -104,6 +104,7 @@ public class Falcon extends JavaPlugin {
     private com.falconcore.survival.manager.DiscordWebhookManager discordWebhookManager;
     private com.h2ph.listeners.MotdListener MotdListener;
     private com.h2ph.managers.DiscordManager discordManager;
+    private com.h2ph.checker.FalconCheckerManager checkerManager;
     private boolean luckPermsEnabled = false;
     
     public com.falconcore.survival.manager.DiscordWebhookManager getDiscordWebhookManager() {
@@ -629,6 +630,14 @@ public class Falcon extends JavaPlugin {
         getCommand("falcon").setExecutor(falconCommand);
         getCommand("falcon").setTabCompleter(falconCommand);
 
+        this.checkerManager = new com.h2ph.checker.FalconCheckerManager(this);
+
+        com.h2ph.checker.FalconCheckerCommand checkerCmd = new com.h2ph.checker.FalconCheckerCommand(this.checkerManager);
+        if (getCommand("checker") != null) {
+            getCommand("checker").setExecutor(checkerCmd);
+            getCommand("checker").setTabCompleter(checkerCmd);
+        }
+
         getCommand("stats").setExecutor(new com.h2ph.commands.player.StatsCommand(this));
 
         getCommand("hide").setExecutor(new com.h2ph.commands.player.HideNameCommand(this));
@@ -902,6 +911,10 @@ public class Falcon extends JavaPlugin {
             this.nametagManager.shutdown();
         }
 
+        if (this.checkerManager != null) {
+            this.checkerManager.cleanup();
+        }
+
         if (this.bountyManager != null) {
             this.bountyManager.save();
         }
@@ -1086,6 +1099,14 @@ public class Falcon extends JavaPlugin {
         return commandHideListener;
     }
 
+    public com.h2ph.checker.FalconCheckerManager getCheckerManager() {
+        return checkerManager;
+    }
+
+    public com.h2ph.checker.FalconCheckerManager getSignProbeManager() {
+        return checkerManager;
+    }
+
     public net.milkbowl.vault.economy.Economy getEconomy() {
         if (getServer().getPluginManager().getPlugin("Vault") == null) {
             return null;
@@ -1116,6 +1137,7 @@ public class Falcon extends JavaPlugin {
         saveResourceSafely("rtp/config.yml");
         saveResourceSafely("crates/keys/config.yml");
         saveResourceSafely("scoreboard/config.yml");
+        saveResourceSafely("survival/checker/config.yml");
 
         java.io.File queueFolder = new java.io.File(getDataFolder(), "rtp/queue");
         if (!queueFolder.exists()) {
@@ -1487,7 +1509,15 @@ public class Falcon extends JavaPlugin {
             console.sendMessage(
                     org.bukkit.ChatColor.translateAlternateColorCodes('&', "&b  [-] &fVoiceChat Hook: &c&lNOT FOUND"));
         }
-        
+
+        if (checkerManager != null) {
+            console.sendMessage(
+                    org.bukkit.ChatColor.translateAlternateColorCodes('&', "&b  [+] &fClient & Cheat Checker: &a&lONLINE"));
+        } else {
+            console.sendMessage(
+                    org.bukkit.ChatColor.translateAlternateColorCodes('&', "&b  [-] &fClient & Cheat Checker: &c&lOFFLINE"));
+        }
+
         console.sendMessage(org.bukkit.ChatColor.translateAlternateColorCodes('&',
                 "&8&m--------------------------------------------------"));
     }

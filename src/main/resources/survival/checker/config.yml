@@ -1,0 +1,71 @@
+# ─────────────────────────────────────────────────────────────
+# FalconCore - Client Checker & Cheat Detection Configuration
+# ─────────────────────────────────────────────────────────────
+
+debug: true
+
+# Automatically scan players on join
+auto-check-on-join:
+  enabled: true
+
+# Action to take when a cheat client is detected (ban, kick, command, message)
+action:
+  type: BAN
+  reason: "Illegal Third-Party Detected (%mod%)"
+  duration: "" # Leave empty to use offend tiered system (1st: 3d, 2nd: 7d, 3rd: permanent) or specify (e.g. "7d", "permanent")
+  content:
+    - "&c&m---------------------------------"
+    - "&cYou are disconnected from this server!"
+    - ""
+    - "&fReason: &fIllegal Third-Party Detected (%mod%)"
+    - "&fDetection: &f%source%"
+    - "&fDate: &f%date%"
+    - ""
+    - "&c&m---------------------------------"
+    - "&7Appeal at :&f discord.gg/yourserver"
+
+# Staff notification alert (formatted like /checkban)
+notify:
+  enabled: true
+  permission: "falcon.alerts"
+  messages:
+    - "&c&m---------------------------------"
+    - "&c Illegal Third-Party Detected: &f%player%"
+    - ""
+    - "&c Status: &eDetected"
+    - "&c Mod: &f%mod%"
+    - "&c Source: &f%source%"
+    - "&c Action: &f%action%"
+    - "&c Date: &f%date%"
+    - "&c&m---------------------------------"
+
+# Public notification broadcast to all players
+broadcast:
+  enabled: true
+  messages:
+    - "&c&m---------------------------------"
+    - "&c Player Removed: &f%player%"
+    - ""
+    - "&c Reason: &fIllegal Third-Party Detected (%mod%)"
+    - "&c Action: &f%action%"
+    - "&c Date: &f%date%"
+    - "&c&m---------------------------------"
+
+# Timeouts and batch delays (in ticks, 20 ticks = 1 second)
+timeout-ticks: 100
+between-sign-ticks: 5
+
+# Custom known mod namespace mapping (for /falcon checker <player>)
+known-mod-names:
+  voicechat: "Simple Voice Chat"
+  plasmovoice: "Plasmo Voice"
+  appleskin: "Appleskin"
+  sodium: "Sodium"
+  lithium: "Lithium"
+  iris: "Iris Shaders"
+  litematica: "Litematica"
+  minihud: "MiniHUD"
+  modmenu: "Mod Menu"
+  journeymap: "JourneyMap"
+  xaerominimap: "Xaero's Minimap"
+  xaeroworldmap: "Xaero's World Map"

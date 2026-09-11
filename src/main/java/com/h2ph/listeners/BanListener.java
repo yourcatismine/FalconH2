@@ -27,58 +27,10 @@ public class BanListener implements Listener {
             DatabaseManager.BanInfo info = plugin.getDatabaseManager().getBanInfo(uuid);
 
             if (info != null) {
-                event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_BANNED, formatBanMessage(info));
+                event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_BANNED, plugin.formatBanMessage(info));
             } else {
                 event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_BANNED, "You are banned.");
             }
         }
-    }
-
-    private String formatBanMessage(DatabaseManager.BanInfo info) {
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
-        String dateStr = sdf.format(new Date(info.date));
-
-        String ordinal = "th";
-        if (info.count == 1)
-            ordinal = "st";
-        else if (info.count == 2)
-            ordinal = "nd";
-        else if (info.count == 3)
-            ordinal = "rd";
-
-        String timeLeft;
-        if (info.expire == -1) {
-            timeLeft = "Permanent";
-        } else {
-            long diff = info.expire - System.currentTimeMillis();
-            long days = TimeUnit.MILLISECONDS.toDays(diff);
-            long hours = TimeUnit.MILLISECONDS.toHours(diff) % 24;
-            long mins = TimeUnit.MILLISECONDS.toMinutes(diff) % 60;
-
-            if (days > 0)
-                timeLeft = days + " day" + (days != 1 ? "s" : "");
-            else if (hours > 0)
-                timeLeft = hours + " hour" + (hours != 1 ? "s" : "");
-            else
-                timeLeft = mins + " minute" + (mins != 1 ? "s" : "");
-        }
-
-        String layout = plugin.getOffendConfig().getString("messages.ban_layout");
-
-        if (layout == null) {
-            layout = "&cYou are banned from this server!\n\n" +
-                    "&fBanned on: &f%banned_on%\n" +
-                    "&fReason: &f%reason%\n" +
-                    "&fBan ID: &b#%id%\n\n" +
-                    "&fExpires in: &f%time_left%";
-        }
-
-        return ChatColor.translateAlternateColorCodes('&', layout
-                .replace("%banned_on%", dateStr)
-                .replace("%reason%", info.reason)
-                .replace("%count%", String.valueOf(info.count))
-                .replace("%ordinal%", ordinal)
-                .replace("%id%", info.id)
-                .replace("%time_left%", timeLeft));
     }
 }

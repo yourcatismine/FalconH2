@@ -336,10 +336,21 @@ public class FalconCommand implements CommandExecutor, TabCompleter {
             return handleWarps(player, args);
         } else if (sub.equals("shards")) {
             return handleShardsAdmin(player, args);
+        } else if (sub.equals("checker")) {
+            if (plugin.getCheckerManager() != null) {
+                if (args.length > 1) {
+                    plugin.getCheckerManager().handleModsCommand(player, args[1]);
+                    return true;
+                }
+                player.sendMessage("§cUsage: /falcon checker <player>");
+                return true;
+            }
+            player.sendMessage("§cChecker system is not initialized.");
+            return true;
         }
 
         player.sendMessage(
-                "§cUnknown subcommand. Use reload, auction, order, rtpqueue, void, setafk, respawngear, limiter, crystal, anchor, pvpsafe, warps, or shards.");
+                "§cUnknown subcommand. Use reload, auction, order, rtpqueue, void, setafk, respawngear, limiter, crystal, anchor, pvpsafe, warps, shards, or checker.");
         player.playSound(player.getLocation(), org.bukkit.Sound.ENTITY_VILLAGER_NO, 1f, 1f);
         return true;
     }
@@ -465,6 +476,10 @@ public class FalconCommand implements CommandExecutor, TabCompleter {
 
             if (plugin.getRedstoneManager() != null) {
                 plugin.getRedstoneManager().reloadConfig();
+            }
+
+            if (plugin.getCheckerManager() != null) {
+                plugin.getCheckerManager().reload();
             }
 
 

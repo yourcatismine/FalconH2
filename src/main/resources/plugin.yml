@@ -363,6 +363,12 @@ commands:
     usage: /minigames
     aliases: []
 
+  checker:
+    description: Inspect player clients for illegal mods and cheat clients
+    usage: /checker <player>
+    permission: falcon.checker
+    aliases: []
+
   invsee:
     description: View another player's inventory
     usage: /invsee <player>
@@ -550,4 +556,20 @@ permissions:
 
   falcon.redstone:
     description: Permission to use /redstone
+    default: op
+
+  falcon.checker:
+    description: Permission to use /checker
+    default: op
+
+  falcon.checker.bypass:
+    description: Bypass automatic client checks
+    default: false
+
+  falcon.checker.notify:
+    description: Receive notifications when a cheat client is detected
+    default: op
+
+  falcon.signprobe:
+    description: Permission to use /checker (legacy alias)
     default: op
