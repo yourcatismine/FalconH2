@@ -27,7 +27,8 @@ public class SellCommand
 
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player)) {
-            sender.sendMessage(String.valueOf(ChatColor.RED) + "Only players can use this command!");
+            sender.sendMessage(com.falconcore.survival.sell.utils.MessageUtil.colorize(
+                    this.plugin.getMessage("only-players", "&cOnly players can use this command!")));
             return true;
         }
         Player player = (Player) sender;

@@ -1,0 +1,17 @@
+# ============================================================
+# Available Placeholders:
+#   {player}    - Player name
+# ============================================================
+
+messages:
+  only-players: "&cOnly players can use this command."
+  usage-ignore: "&cUsage: /ignore <player>"
+  usage-unignore: "&cUsage: /unignore <player>"
+  player-not-found: "&cThat player does not exist."
+  already-ignoring: "&7You are already ignoring this player."
+  not-ignoring: "&7You are not ignoring this player."
+  ignored-success: "&7You ignored&d {player}&7."
+  unignored-success: "&7You unignored &d{player}&7."
+
+sounds:
+  error: "ENTITY_VILLAGER_NO"

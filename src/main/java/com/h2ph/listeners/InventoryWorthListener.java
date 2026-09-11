@@ -184,20 +184,20 @@ public class InventoryWorthListener implements Listener {
     @EventHandler
     public void onInventoryMoveItem(org.bukkit.event.inventory.InventoryMoveItemEvent event) {
         ItemStack moving = event.getItem();
-        if (plugin.getInventoryWorthManager().stripFromItem(moving)) {
+        if (moving != null && moving.hasItemMeta() && plugin.getInventoryWorthManager().stripFromItem(moving)) {
             event.setItem(moving);
         }
 
         org.bukkit.inventory.Inventory dest = event.getDestination();
         org.bukkit.inventory.Inventory source = event.getSource();
 
-        boolean destViewed = plugin.getInventoryWorthManager().isStandardContainer(dest) && !dest.getViewers().isEmpty();
-        boolean sourceViewed = plugin.getInventoryWorthManager().isStandardContainer(source) && !source.getViewers().isEmpty();
+        boolean destViewed = dest != null && !dest.getViewers().isEmpty() && plugin.getInventoryWorthManager().isStandardContainer(dest);
+        boolean sourceViewed = source != null && !source.getViewers().isEmpty() && plugin.getInventoryWorthManager().isStandardContainer(source);
 
         if (destViewed) {
             for (int i = 0; i < dest.getSize(); i++) {
                 ItemStack item = dest.getItem(i);
-                if (item != null && item.getType() != Material.AIR) {
+                if (item != null && item.getType() != Material.AIR && item.hasItemMeta()) {
                     plugin.getInventoryWorthManager().stripFromItem(item);
                 }
             }
@@ -231,10 +231,10 @@ public class InventoryWorthListener implements Listener {
     @EventHandler
     public void onHopperPickup(org.bukkit.event.inventory.InventoryPickupItemEvent event) {
         org.bukkit.inventory.Inventory dest = event.getInventory();
-        if (plugin.getInventoryWorthManager().isStandardContainer(dest) && !dest.getViewers().isEmpty()) {
+        if (dest != null && !dest.getViewers().isEmpty() && plugin.getInventoryWorthManager().isStandardContainer(dest)) {
             for (int i = 0; i < dest.getSize(); i++) {
                 ItemStack item = dest.getItem(i);
-                if (item != null && item.getType() != Material.AIR) {
+                if (item != null && item.getType() != Material.AIR && item.hasItemMeta()) {
                     plugin.getInventoryWorthManager().stripFromItem(item);
                 }
             }

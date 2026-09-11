@@ -33,38 +33,25 @@ import java.util.TreeSet;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * Universal Client & Channel Detector.
- * Intercepts packet-level channel registrations, client brands via PacketEvents & Bukkit PluginMessageListener,
- * and derives installed mods + cheat client signatures.
- */
 public class ChannelDetector implements Listener, PluginMessageListener {
 
     private final FalconCheckerManager manager;
 
-    /** Raw channels registered per player */
     private final Map<UUID, Set<String>> playerChannels = new ConcurrentHashMap<>();
 
-    /** Detected client brand per player (e.g. "fabric", "vanilla", "lunarclient:v2.x") */
     private final Map<UUID, String> playerBrands = new ConcurrentHashMap<>();
 
-    /** Player names cached by UUID for early packet tracking */
     private final Map<UUID, String> playerNames = new ConcurrentHashMap<>();
 
-    /** Detected cheats per player: UUID -> (CheatName -> DetectionSource) */
     private final Map<UUID, Map<String, String>> detectedCheats = new ConcurrentHashMap<>();
 
-    /** PacketEvents listener for raw plugin messages */
     private PacketListenerAbstract packetListener;
 
-    /** Built-in known utility mod display names (namespace -> Display Name) */
     private static final Map<String, String> BUILTIN_MOD_NAMES = new LinkedHashMap<>();
 
-    /** Known cheat client keywords / channel prefixes (namespace/keyword -> Display Name) */
     private static final Map<String, String> KNOWN_CHEAT_SIGNATURES = new LinkedHashMap<>();
 
     static {
-        // ── Known Cheat Signatures ──
         KNOWN_CHEAT_SIGNATURES.put("meteor-client", "Meteor Client");
         KNOWN_CHEAT_SIGNATURES.put("meteor", "Meteor Client");
         KNOWN_CHEAT_SIGNATURES.put("meteordevelopment", "Meteor Client");
@@ -98,7 +85,6 @@ public class ChannelDetector implements Listener, PluginMessageListener {
         KNOWN_CHEAT_SIGNATURES.put("xaeroworldmap", "Xaero's World Map");
         KNOWN_CHEAT_SIGNATURES.put("xaero", "Xaero's Map");
 
-        // ── Known Utility Mods ──
         BUILTIN_MOD_NAMES.put("voicechat", "Simple Voice Chat");
         BUILTIN_MOD_NAMES.put("plasmovoice", "Plasmo Voice");
         BUILTIN_MOD_NAMES.put("appleskin", "Appleskin");
@@ -129,13 +115,14 @@ public class ChannelDetector implements Listener, PluginMessageListener {
         BUILTIN_MOD_NAMES.put("feather", "Feather Client");
         BUILTIN_MOD_NAMES.put("labymod", "LabyMod");
         BUILTIN_MOD_NAMES.put("labymod3", "LabyMod");
+        BUILTIN_MOD_NAMES.put("geyser", "Geyser (Bedrock)");
+        BUILTIN_MOD_NAMES.put("floodgate", "Floodgate");
     }
 
     public ChannelDetector(FalconCheckerManager manager) {
         this.manager = manager;
         this.registerPacketListener();
 
-        // Register Bukkit native brand and registration channels
         try {
             manager.getPlugin().getServer().getMessenger().registerIncomingPluginChannel(manager.getPlugin(), "MC|Brand", this);
             manager.getPlugin().getServer().getMessenger().registerIncomingPluginChannel(manager.getPlugin(), "minecraft:brand", this);
@@ -146,7 +133,6 @@ public class ChannelDetector implements Listener, PluginMessageListener {
         }
     }
 
-    // ─── Bukkit PluginMessageListener (Brand & Channel Interception) ──────
 
     @Override
     public void onPluginMessageReceived(String channel, Player player, byte[] message) {
@@ -177,7 +163,6 @@ public class ChannelDetector implements Listener, PluginMessageListener {
         recordChannel(player, channel);
     }
 
-    // ─── PacketEvents Packet Listener ──────────────────────────────────────
 
     private void registerPacketListener() {
         this.packetListener = new PacketListenerAbstract() {
@@ -224,7 +209,6 @@ public class ChannelDetector implements Listener, PluginMessageListener {
     private void handleIncomingPluginMessage(UUID uuid, String playerName, String channel, byte[] data) {
         if (channel == null) return;
 
-        // 1. Channel registration packets
         if (channel.equalsIgnoreCase("minecraft:register") || channel.equalsIgnoreCase("REGISTER")) {
             if (data != null && data.length > 0) {
                 String payload = new String(data, StandardCharsets.UTF_8);
@@ -239,7 +223,6 @@ public class ChannelDetector implements Listener, PluginMessageListener {
             return;
         }
 
-        // 2. Client brand packets
         if (channel.equalsIgnoreCase("minecraft:brand") || channel.equalsIgnoreCase("MC|Brand")) {
             if (data != null && data.length > 0) {
                 String brand = extractBrandFromData(data);
@@ -250,7 +233,6 @@ public class ChannelDetector implements Listener, PluginMessageListener {
             return;
         }
 
-        // 3. Any custom channel traffic (e.g. baritone:sync, meteor-client:*)
         recordChannelByUUID(uuid, playerName, channel);
     }
 
@@ -277,7 +259,6 @@ public class ChannelDetector implements Listener, PluginMessageListener {
         }
     }
 
-    // ─── Bukkit Event Listeners ───────────────────────────────────────────
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onPlayerJoin(PlayerJoinEvent event) {
@@ -287,7 +268,6 @@ public class ChannelDetector implements Listener, PluginMessageListener {
 
         manager.debug("Player " + player.getName() + " joined — scanning client brand & channels...");
 
-        // 1. Immediate brand check via Paper API
         try {
             String immediateBrand = player.getClientBrandName();
             if (immediateBrand != null && !immediateBrand.isBlank()) {
@@ -295,11 +275,9 @@ public class ChannelDetector implements Listener, PluginMessageListener {
             }
         } catch (Throwable ignored) {}
 
-        // 2. Comprehensive check delayed by 20 ticks (1s) to allow all channels & handshake to register
         manager.getPlugin().getSchedulerAdapter().runEntityTaskLater(player, () -> {
             if (!player.isOnline()) return;
 
-            // Final brand check
             try {
                 String brand = player.getClientBrandName();
                 if (brand != null && !brand.isBlank()) {
@@ -307,17 +285,20 @@ public class ChannelDetector implements Listener, PluginMessageListener {
                 }
             } catch (Throwable ignored) {}
 
-            // If brand is still missing, fallback to Vanilla / Standard
             if (!playerBrands.containsKey(uuid)) {
                 playerBrands.put(uuid, "vanilla");
             }
 
-            // Run auto-mod inspection & debug logging
             runJoinInspection(player);
         }, 20L);
     }
 
     private void runJoinInspection(Player player) {
+        if (FalconCheckerManager.isBedrockPlayer(player)) {
+            manager.debug("[" + player.getName() + "] Bedrock/Geyser player detected — skipping cheat auto-flagging.");
+            return;
+        }
+
         UUID uuid = player.getUniqueId();
         String brand = getBrand(uuid);
         String loader = getLoaderType(uuid);
@@ -335,7 +316,6 @@ public class ChannelDetector implements Listener, PluginMessageListener {
             manager.debug("[" + player.getName() + "] Registered Channels: " + String.join(", ", channels));
         }
 
-        // Auto punish if cheats found on join
         if (!cheats.isEmpty() && manager.getConfig().getBoolean("auto-check-on-join.enabled", true)) {
             for (Map.Entry<String, String> cheat : cheats.entrySet()) {
                 flagCheat(player, cheat.getKey(), cheat.getValue());
@@ -366,7 +346,6 @@ public class ChannelDetector implements Listener, PluginMessageListener {
         detectedCheats.remove(uuid);
     }
 
-    // ─── Recording & Cheat Identification ─────────────────────────────────
 
     public void recordChannel(Player player, String channel) {
         if (player == null || channel == null || channel.isBlank()) return;
@@ -379,6 +358,11 @@ public class ChannelDetector implements Listener, PluginMessageListener {
             playerNames.put(uuid, name);
         }
 
+        Player online = org.bukkit.Bukkit.getPlayer(uuid);
+        if (FalconCheckerManager.isBedrock(uuid, name, online)) {
+            return;
+        }
+
         boolean isNew = playerChannels.computeIfAbsent(uuid, k -> ConcurrentHashMap.newKeySet()).add(channel);
         String displayName = name != null ? name : playerNames.getOrDefault(uuid, uuid.toString());
 
@@ -386,11 +370,9 @@ public class ChannelDetector implements Listener, PluginMessageListener {
             manager.debug("[" + displayName + "] Registered channel: " + channel);
         }
 
-        // Check if this channel matches a known cheat
         String lowerChannel = channel.toLowerCase();
         for (Map.Entry<String, String> entry : KNOWN_CHEAT_SIGNATURES.entrySet()) {
             if (lowerChannel.startsWith(entry.getKey()) || lowerChannel.contains(entry.getKey() + ":") || lowerChannel.contains(entry.getKey() + "-")) {
-                Player online = org.bukkit.Bukkit.getPlayer(uuid);
                 if (online != null) {
                     flagCheat(online, entry.getValue(), "Channel: " + channel);
                 } else {
@@ -412,6 +394,12 @@ public class ChannelDetector implements Listener, PluginMessageListener {
             playerNames.put(uuid, name);
         }
 
+        Player online = org.bukkit.Bukkit.getPlayer(uuid);
+        if (FalconCheckerManager.isBedrock(uuid, name, online)) {
+            playerBrands.put(uuid, brand);
+            return;
+        }
+
         String displayName = name != null ? name : playerNames.getOrDefault(uuid, uuid.toString());
         String previous = playerBrands.put(uuid, brand);
         if (previous == null || !previous.equalsIgnoreCase(brand)) {
@@ -421,7 +409,6 @@ public class ChannelDetector implements Listener, PluginMessageListener {
         String lowerBrand = brand.toLowerCase();
         for (Map.Entry<String, String> entry : KNOWN_CHEAT_SIGNATURES.entrySet()) {
             if (lowerBrand.contains(entry.getKey())) {
-                Player online = org.bukkit.Bukkit.getPlayer(uuid);
                 if (online != null) {
                     flagCheat(online, entry.getValue(), "Brand: " + brand);
                 } else {
@@ -432,20 +419,14 @@ public class ChannelDetector implements Listener, PluginMessageListener {
         }
     }
 
-    /**
-     * Flags a player for using a cheat client and triggers staff alerts / action.
-     */
     public void flagCheat(Player player, String cheatName, String detectionSource) {
+        if (player == null || FalconCheckerManager.isBedrockPlayer(player)) {
+            return;
+        }
         UUID uuid = player.getUniqueId();
         Map<String, String> cheats = detectedCheats.computeIfAbsent(uuid, k -> new ConcurrentHashMap<>());
         if (cheats.putIfAbsent(cheatName, detectionSource) == null) {
-            // First time detected in this session -> alert staff & broadcast
-            manager.notifyStaff(player, cheatName, detectionSource);
-            manager.broadcastToAll(player, cheatName, detectionSource);
-            manager.getLogger().warning("[FalconChecker] DETECTED: " + player.getName() + " is running " + cheatName + " (" + detectionSource + ")");
-
-            // Execute configured action (kick/command/message)
-            manager.executeAction(player, cheatName, detectionSource);
+            manager.flagCheat(player, cheatName, detectionSource);
         }
     }
 
@@ -454,10 +435,8 @@ public class ChannelDetector implements Listener, PluginMessageListener {
     }
 
     public void reload() {
-        // Dynamic reloads use manager config directly
     }
 
-    // ─── Public API ──────────────────────────────────────────────────────
 
     public Set<String> getChannels(UUID uuid) {
         Set<String> channels = playerChannels.get(uuid);
@@ -478,9 +457,6 @@ public class ChannelDetector implements Listener, PluginMessageListener {
         return cheats != null ? Collections.unmodifiableMap(cheats) : Collections.emptyMap();
     }
 
-    /**
-     * Returns detected non-cheat utility mods derived from channels.
-     */
     public Set<String> getDetectedMods(UUID uuid) {
         Set<String> channels = playerChannels.get(uuid);
         if (channels == null || channels.isEmpty()) {
@@ -523,8 +499,13 @@ public class ChannelDetector implements Listener, PluginMessageListener {
     }
 
     public String getLoaderType(UUID uuid) {
-        Set<String> channels = playerChannels.get(uuid);
         String brand = getBrand(uuid).toLowerCase();
+        Player online = org.bukkit.Bukkit.getPlayer(uuid);
+        if (FalconCheckerManager.isBedrock(uuid, playerNames.get(uuid), online) || brand.contains("geyser") || brand.contains("floodgate") || brand.contains("bedrock")) {
+            return "Bedrock (Geyser)";
+        }
+
+        Set<String> channels = playerChannels.get(uuid);
 
         boolean fabric = brand.contains("fabric") || brand.contains("quilt");
         boolean forge = brand.contains("forge") || brand.contains("neoforge");
@@ -558,7 +539,6 @@ public class ChannelDetector implements Listener, PluginMessageListener {
         return getLoaderType(uuid).contains("Forge");
     }
 
-    // ─── Inspection Report UI ─────────────────────────────────────────────
 
     public void sendModsReport(CommandSender sender, Player target) {
         UUID uuid = target.getUniqueId();
@@ -642,7 +622,6 @@ public class ChannelDetector implements Listener, PluginMessageListener {
         detectedCheats.clear();
     }
 
-    // ─── Utility ─────────────────────────────────────────────────────────
 
     private String extractNamespace(String channel) {
         if (channel == null || channel.isEmpty()) return null;

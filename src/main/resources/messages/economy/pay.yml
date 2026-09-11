@@ -1,0 +1,22 @@
+# ============================================================
+# Available Placeholders:
+#   {sender}   - Sender player name
+#   {target}   - Target player name
+#   {money}    - Formatted payment money amount
+# ============================================================
+
+messages:
+  only-players: "&cOnly players can use this command."
+  player-not-found: "&cThat player does not exist."
+  cannot-pay-self: "&cYou cannot pay yourself."
+  insufficient-funds: "&cYou do not have enough money."
+  cannot-load-data: "&cCould not load data for that player."
+  payments-disabled: "&cUser disabled payments."
+  player-ignored: "&7You are ignored by this player."
+  transaction-failed: "&cTransaction failed."
+  pay-success-sender: "&7You paid &d{target}&a ${money}"
+  pay-success-target: "&d{sender}&7 paid you&a ${money}"
+
+sounds:
+  error: "ENTITY_VILLAGER_NO"
+  pay-received: "ENTITY_EXPERIENCE_ORB_PICKUP"

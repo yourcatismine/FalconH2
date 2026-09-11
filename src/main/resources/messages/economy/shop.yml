@@ -1,0 +1,18 @@
+# ============================================================
+# Available Placeholders:
+#   {file}    - Category file name
+# ============================================================
+
+messages:
+  only-players: "&cOnly players can use the shop."
+  category-not-found: "&cCategory file not found: {file}"
+  error-loading-data: "&cError loading your data!"
+  not-enough-money: "&cYou do not have enough money!"
+  not-enough-shards: "&cYou do not have enough shards!"
+  inventory-full: "&cYour inventory is full!"
+  item-not-recognized: "&cError: Item type not recognized!"
+
+sounds:
+  menu-click: "BLOCK_TRIPWIRE_CLICK_ON"
+  purchase-success: "ENTITY_EXPERIENCE_ORB_PICKUP"
+  purchase-error: "ENTITY_VILLAGER_NO"

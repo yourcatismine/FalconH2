@@ -1,0 +1,14 @@
+# ============================================================
+# Available Placeholders:
+#   {player}    - Target player name
+#   {dimension} - Dimension name (Overworld, The Nether, The End)
+# ============================================================
+
+messages:
+  self: "&7You are currenlty on &d{dimension}"
+  other: "&d{player}&7 is currenlty on &d{dimension}"
+  player-not-online: "&cPlayer is not online."
+  player-not-found: "&cThat player does not exist."
+
+sounds:
+  error: "ENTITY_VILLAGER_NO"

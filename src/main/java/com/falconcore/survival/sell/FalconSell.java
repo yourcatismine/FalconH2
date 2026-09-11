@@ -31,6 +31,8 @@ public class FalconSell {
 
     private File configFile;
     private FileConfiguration config;
+    private File messagesFile;
+    private FileConfiguration messagesConfig;
 
     public FalconSell(Falcon plugin) {
         this.plugin = plugin;
@@ -60,6 +62,8 @@ public class FalconSell {
                     new java.io.InputStreamReader(defConfigStream, java.nio.charset.StandardCharsets.UTF_8)));
         }
 
+        reloadMessagesConfig();
+
         if (this.pricesManager != null) {
             this.pricesManager.loadPrices();
         }
@@ -68,6 +72,42 @@ public class FalconSell {
         }
         if (plugin.getInventoryWorthManager() != null) {
             plugin.getInventoryWorthManager().reloadConfig();
+        }
+    }
+
+    public void reloadMessagesConfig() {
+        if (messagesFile == null) {
+            messagesFile = new File(plugin.getDataFolder(), "messages/economy/sell.yml");
+        }
+        if (!messagesFile.exists()) {
+            plugin.saveResource("messages/economy/sell.yml", false);
+        }
+        messagesConfig = YamlConfiguration.loadConfiguration(messagesFile);
+    }
+
+    public FileConfiguration getMessagesConfig() {
+        if (messagesConfig == null) {
+            reloadMessagesConfig();
+        }
+        return messagesConfig;
+    }
+
+    public String getMessage(String path, String def) {
+        if (getMessagesConfig() == null)
+            return def;
+        return getMessagesConfig().getString("messages." + path, def);
+    }
+
+    public org.bukkit.Sound getSound(String key, org.bukkit.Sound def) {
+        if (getMessagesConfig() == null)
+            return def;
+        String soundName = getMessagesConfig().getString("sounds." + key);
+        if (soundName == null || soundName.isEmpty())
+            return def;
+        try {
+            return org.bukkit.Sound.valueOf(soundName.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return def;
         }
     }
 
@@ -95,6 +135,7 @@ public class FalconSell {
                 plugin.getLogger().log(java.util.logging.Level.SEVERE, "Could not save config to " + configFile, e);
             }
         }
+        reloadMessagesConfig();
     }
 
     public void saveConfig() {

@@ -482,6 +482,14 @@ public class FalconCommand implements CommandExecutor, TabCompleter {
                 plugin.getCheckerManager().reload();
             }
 
+            if (plugin.getBalanceCommand() != null) {
+                plugin.getBalanceCommand().loadConfig();
+            }
+
+            if (plugin.getAuctionController() != null) {
+                plugin.getAuctionController().reloadAllConfigs();
+            }
+
 
             long time = System.currentTimeMillis() - start;
 

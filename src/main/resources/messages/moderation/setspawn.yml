@@ -1,0 +1,18 @@
+# ============================================================
+# Available Placeholders:
+#   {name}     - Spawn name
+#   {world}    - World name
+# ============================================================
+
+messages:
+  only-players: "Only players can use this command."
+  no-permission: "&cYou do not have permission to do that."
+  spawn-not-initialized: "&cSpawnManager is not initialized."
+  deleted-spawn: "&aDeleted spawn '{name}'."
+  deleted-spawn-failed: "&cSpawn '{name}' not found or could not be deleted."
+  deleted-world-spawn: "&aDeleted world spawn for '{world}'."
+  deleted-world-spawn-failed: "&cWorld spawn for '{world}' not found or could not be deleted."
+  set-world-spawn-success: "&aSet world spawn for '{world}' at your current location."
+  set-world-spawn-failed: "&cFailed to set world spawn. Check server logs."
+  saved-spawn-success: "&aSaved spawn '{name}'."
+  saved-spawn-failed: "&cFailed to save spawn. Check server logs."

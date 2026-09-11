@@ -1,0 +1,22 @@
+# ============================================================
+# Available Placeholders:
+#   {player}       - Target player's name
+#   {balance}      - Formatted balance (e.g. 1.5K, 2.5M, 100)
+#   {raw_balance}  - Unformatted raw balance amount (e.g. 1500.0)
+# ============================================================
+
+messages:
+  console-must-specify-player: "&cConsole must specify a player."
+  player-not-found: "&cThat player does not exist."
+  balance-self: "&7You have &a${balance}"
+  balance-other: "&d{player}&7 has &a${balance}"
+
+action-bar:
+  enabled: true
+
+sounds:
+  player-not-found:
+    enabled: true
+    sound: "ENTITY_VILLAGER_NO"
+    volume: 1.0
+    pitch: 1.0

@@ -1,0 +1,16 @@
+# ============================================================
+# Available Placeholders:
+#   None
+# ============================================================
+
+messages:
+  only-players: "&cOnly players can use this command."
+  no-permission: "&cYou do not have permission to use this command."
+  vanish-on: "&7You are in vanished."
+  vanish-off: "&7You are unvanished."
+  actionbar-on: "&fVanish Activated"
+  actionbar-off: "&fVanish Deactivated"
+
+sounds:
+  vanish-on: "BLOCK_BEACON_ACTIVATE"
+  vanish-off: "BLOCK_BEACON_DEACTIVATE"

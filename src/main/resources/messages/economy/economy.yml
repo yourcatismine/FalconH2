@@ -1,0 +1,21 @@
+# ============================================================
+# Available Placeholders:
+#   {player}   - Target player name
+#   {amount}   - Amount given/removed
+#   {balance}  - New or updated balance
+# ============================================================
+
+messages:
+  no-permission: "&cYou do not have permission to use this command."
+  usage: "&cUsage: /economy <give|set|remove> <player> <amount>"
+  invalid-amount: "&cInvalid amount! Examples: 100h, 10k, 1.5m"
+  invalid-action: "&cInvalid action! Use: give, set, remove"
+  player-not-found: "&cThat user does not exist."
+  give-success: "&aGave &6${amount} &ato &e{player}&a. New balance: &6${balance}"
+  set-success: "&aSet &e{player}&a's balance to &6${balance}"
+  remove-success: "&aRemoved &6${amount} &afrom &e{player}&a. New balance: &6${balance}"
+  target-updated: "&7Your balance has been updated to &a${balance}"
+
+sounds:
+  error: "ENTITY_VILLAGER_NO"
+  success: "ENTITY_EXPERIENCE_ORB_PICKUP"

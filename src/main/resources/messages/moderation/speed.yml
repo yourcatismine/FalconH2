@@ -1,0 +1,10 @@
+# ============================================================
+# Available Placeholders:
+#   None
+# ============================================================
+
+messages:
+  only-players: "This command is only for players."
+
+sounds:
+  error: "ENTITY_VILLAGER_NO"

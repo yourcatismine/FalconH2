@@ -39,6 +39,8 @@ public class BillfordCommand implements CommandExecutor, Listener, TabCompleter 
 
     private final File tradeFile;
     private FileConfiguration tradeConfig;
+    private File messagesFile;
+    private FileConfiguration messagesConfig;
 
     private Map<Integer, ItemStack> currentInputs = new HashMap<>();
     private ItemStack currentOutput;
@@ -49,6 +51,12 @@ public class BillfordCommand implements CommandExecutor, Listener, TabCompleter 
 
     public BillfordCommand(Falcon plugin) {
         this.plugin = plugin;
+
+        messagesFile = new File(plugin.getDataFolder(), "messages/economy/billford.yml");
+        if (!messagesFile.exists()) {
+            plugin.saveResource("messages/economy/billford.yml", false);
+        }
+        messagesConfig = YamlConfiguration.loadConfiguration(messagesFile);
 
         tradeFile = new File(plugin.getDataFolder(), "survival/billford/billford.yml");
         if (!tradeFile.exists()) {
@@ -62,6 +70,25 @@ public class BillfordCommand implements CommandExecutor, Listener, TabCompleter 
         tradeConfig = YamlConfiguration.loadConfiguration(tradeFile);
 
         loadTrade();
+    }
+
+    private String getMessage(String path, String def) {
+        if (messagesConfig == null)
+            return def;
+        return messagesConfig.getString("messages." + path, def);
+    }
+
+    private Sound getSound(String key, Sound def) {
+        if (messagesConfig == null)
+            return def;
+        String soundName = messagesConfig.getString("sounds." + key);
+        if (soundName == null || soundName.isEmpty())
+            return def;
+        try {
+            return Sound.valueOf(soundName.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return def;
+        }
     }
 
     private void loadTrade() {
@@ -112,7 +139,8 @@ public class BillfordCommand implements CommandExecutor, Listener, TabCompleter 
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label,
             @NotNull String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(ChatColor.RED + "Only players can use Billford.");
+            sender.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                    getMessage("only-players", "&cOnly players can use Billford.")));
             return true;
         }
 
@@ -230,7 +258,7 @@ public class BillfordCommand implements CommandExecutor, Listener, TabCompleter 
 
             if (clicked != null && clicked.getType() != Material.BLACK_STAINED_GLASS_PANE
                     && clicked.getType() != Material.AIR) {
-                playSound(player, Sound.BLOCK_TRIPWIRE_CLICK_ON);
+                playSound(player, getSound("click", Sound.BLOCK_TRIPWIRE_CLICK_ON));
             }
 
             if (slot == 23 && clicked != null && clicked.getType() == Material.HOPPER) {
@@ -271,24 +299,26 @@ public class BillfordCommand implements CommandExecutor, Listener, TabCompleter 
         }
 
         if (!hasInput || foundOutput == null || foundOutput.getType() == Material.AIR) {
-            player.sendMessage(
-                    ChatColor.RED + "Missing items! Place items in the input area and an output in Slot 25.");
-            playSound(player, Sound.ENTITY_VILLAGER_NO);
+            player.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                    getMessage("missing-items", "&cMissing items! Place items in the input area and an output in Slot 25.")));
+            playSound(player, getSound("error", Sound.ENTITY_VILLAGER_NO));
             return;
         }
 
         saveTrade(foundInputs, foundOutput);
-        player.sendMessage(ChatColor.GREEN + "Billford Trade Saved!");
-        playSound(player, Sound.ENTITY_PLAYER_LEVELUP);
+        player.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                getMessage("trade-saved", "&aBillford Trade Saved!")));
+        playSound(player, getSound("admin-save", Sound.ENTITY_PLAYER_LEVELUP));
         player.closeInventory();
     }
 
     private void performTrade(Player player) {
         if (!canAfford(player, currentInputs.values())) {
-            String failMsg = ChatColor.RED + "You do not have all the required contents.";
+            String failMsg = ChatColor.translateAlternateColorCodes('&',
+                    getMessage("insufficient-items", "&cYou do not have all the required contents."));
             player.sendMessage(failMsg);
             player.spigot().sendMessage(ChatMessageType.ACTION_BAR, TextComponent.fromLegacyText(failMsg));
-            playSound(player, Sound.ENTITY_VILLAGER_NO);
+            playSound(player, getSound("error", Sound.ENTITY_VILLAGER_NO));
             return;
         }
 
@@ -302,7 +332,9 @@ public class BillfordCommand implements CommandExecutor, Listener, TabCompleter 
         }
 
         String successMsg = ChatColor.translateAlternateColorCodes('&',
-                "&7Traded for &f" + currentOutput.getAmount() + "x &f" + formatName(currentOutput));
+                getMessage("trade-success", "&7Traded for &f{amount}x &f{item}")
+                        .replace("{amount}", String.valueOf(currentOutput.getAmount()))
+                        .replace("{item}", formatName(currentOutput)));
 
         player.sendMessage(successMsg);
         player.spigot().sendMessage(ChatMessageType.ACTION_BAR, TextComponent.fromLegacyText(successMsg));

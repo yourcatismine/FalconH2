@@ -1,0 +1,22 @@
+# ============================================================
+# Available Placeholders:
+#   {player}   - Player name
+#   {shards}   - Formatted shards amount
+# ============================================================
+
+messages:
+  only-players: "&cOnly players can check shard balances."
+  shards-self: "&7Your shards: &5{shards}"
+  player-not-found: "&cThat user does not exist."
+  cannot-load-data: "&cCould not load data for {player}"
+  shards-other: "&7{player}'s shards: &5{shards}"
+  cannot-pay-self: "&cYou cannot pay yourself!"
+  not-enough-shards: "&cYou do not have enough shards!"
+  player-ignored: "&7You are ignored by this player."
+  pay-success-sender: "&7You paid {player} &5{shards} shards"
+  pay-success-target: "&5{player}&7 paid you &5{shards}"
+
+sounds:
+  error: "ENTITY_VILLAGER_NO"
+  pay-sender: "BLOCK_AMETHYST_BLOCK_CHIME"
+  pay-target: "BLOCK_AMETHYST_BLOCK_PLACE"

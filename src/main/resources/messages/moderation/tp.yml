@@ -1,0 +1,19 @@
+# ============================================================
+# Available Placeholders:
+#   {player}    - Target player name
+# ============================================================
+
+messages:
+  only-players: "Only players can use this command."
+  no-permission: "&cYou do not have permission to use this command."
+  teleporting: "&7Teleporting to &d{player}"
+  teleported: "&7Teleported to &d{player}"
+  player-not-online: "&cThat player is not online."
+  player-not-found: "&cThat player does not exist."
+  player-already-online: "&cThat player is online."
+  no-location-found: "&cNo location found for this player."
+  database-error: "&cDatabase error occurred."
+
+sounds:
+  teleport: "ENTITY_ENDERMAN_TELEPORT"
+  error: "ENTITY_VILLAGER_NO"

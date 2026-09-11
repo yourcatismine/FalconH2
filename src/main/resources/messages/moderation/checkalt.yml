@@ -1,0 +1,14 @@
+# ============================================================
+# Available Placeholders:
+#   {player}        - Target player name
+#   {alt_player}    - Alt account player name
+#   {status}        - Status (Online / Offline)
+# ============================================================
+
+messages:
+  player-not-found: "&cThat player does not exist."
+  alt-list-title: "&d Alt Accounts for &f{player}"
+  no-alts-found: " &8- &7No other accounts found."
+
+sounds:
+  error: "ENTITY_VILLAGER_NO"

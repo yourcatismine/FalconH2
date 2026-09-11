@@ -1,0 +1,38 @@
+# ============================================================
+# Available Placeholders:
+#   {player}       - Target or current player name
+#   {owner}        - Order owner name
+#   {deliverer}    - Deliverer name
+#   {item}         - Item display name
+#   {amount}       - Item amount / quantity
+#   {money}        - Money / price amount
+#   ${total}       - Total cost for order creation
+#   {count}        - Orders count
+#   {error}        - Error message
+# ============================================================
+
+messages:
+  only-players: "&cThis command can only be used by players."
+  select-item-first: "&cPlease select an item first."
+  item-disabled: "&cThis item is currently disabled."
+  invalid-amount: "&cInvalid amount."
+  invalid-price: "&cInvalid price."
+  cannot_afford: "&cYou cannot afford this (&f${total}&c)."
+  collect-items-first: "&cPlease collect your items before cancelling!"
+  order-cancelled: "&aOrder cancelled and ${money} refunded."
+  delivery-in-progress: "&cDelivery already in progress! Please wait."
+  order-inactive: "&cThis order is no longer active!"
+  delivery-failed: "&cDelivery failed: {error}"
+  items-collected: "&aCollected {amount}x items."
+  order-delivered-deliverer: "&fYou delivered &a{amount}x &f{item} to &a{owner}&f's order and earned &a${money}&f!"
+  order-delivered-owner: "&a{deliverer} &fdelivered &a{amount}x &f{item} to your order!"
+  offline-delivery-single: "&a{deliverer} &fdelivered &a{amount}x {item}&f to your order for &a${money}"
+  offline-delivery-multi: "&a{count} &fof your orders were delivered while you were offline. Total earned: &a${money}"
+
+sounds:
+  delivery-success: "ENTITY_EXPERIENCE_ORB_PICKUP"
+  order-created: "ENTITY_EXPERIENCE_ORB_PICKUP"
+  order-cancelled: "ENTITY_EXPERIENCE_ORB_PICKUP"
+  items-collected: "ENTITY_ITEM_PICKUP"
+  button-click: "UI_BUTTON_CLICK"
+  error: "ENTITY_VILLAGER_NO"

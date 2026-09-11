@@ -169,6 +169,19 @@ public class OffendPlugin implements CommandExecutor, TabCompleter {
                 }
 
                 if (info == null) {
+                    try {
+                        UUID u = UUID.fromString(input);
+                        info = dbManager.getBanInfo(u);
+                    } catch (IllegalArgumentException ignored) {
+                    }
+                }
+
+                if (info == null) {
+                    UUID offlineUuid = UUID.nameUUIDFromBytes(("OfflinePlayer:" + input).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                    info = dbManager.getBanInfo(offlineUuid);
+                }
+
+                if (info == null) {
                     String cleanId = input.replace("#", "");
                     info = dbManager.getBanInfoById(cleanId);
                 }
@@ -218,45 +231,48 @@ public class OffendPlugin implements CommandExecutor, TabCompleter {
             String targetName = args[0];
             plugin.getSchedulerAdapter().runTaskAsynchronously(() -> {
                 DatabaseManager.BanInfo info = dbManager.getBanInfoByName(targetName);
-                if (info != null) {
-                    dbManager.removeBan(info.playerName);
+                if (info == null) {
+                    try {
+                        UUID u = UUID.fromString(targetName);
+                        info = dbManager.getBanInfo(u);
+                    } catch (IllegalArgumentException ignored) {
+                    }
+                }
+                if (info == null) {
+                    UUID offlineUuid = UUID.nameUUIDFromBytes(("OfflinePlayer:" + targetName).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                    info = dbManager.getBanInfo(offlineUuid);
+                }
 
-                    if (info.uuid != null && info.reasonKey != null) {
-                        dbManager.resetOffenseCount(info.uuid, info.reasonKey);
+                if (info != null) {
+                    String cleanName = info.playerName != null ? info.playerName : targetName;
+                    dbManager.removeBan(cleanName);
+                    dbManager.removeBan(targetName);
+
+                    if (info.uuid != null) {
+                        try {
+                            UUID u = UUID.fromString(info.uuid);
+                            dbManager.removeBan(u);
+                        } catch (Exception ignored) {
+                        }
+                        if (info.reasonKey != null) {
+                            dbManager.resetOffenseCount(info.uuid, info.reasonKey);
+                        }
+                    }
+
+                    try {
+                        UUID offlineUuid = UUID.nameUUIDFromBytes(("OfflinePlayer:" + targetName).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                        dbManager.removeBan(offlineUuid);
+                    } catch (Exception ignored) {
                     }
 
                     if (plugin.getApiServer() != null) {
-                        plugin.getApiServer().broadcastUnban(info.playerName, sender.getName());
+                        plugin.getApiServer().broadcastUnban(cleanName, sender.getName());
                     }
 
                     plugin.getSchedulerAdapter().runTask(() -> sender
                             .sendMessage(
-                                    ChatColor.GREEN + "Successfully unbanned " + ChatColor.YELLOW + info.playerName));
+                                    ChatColor.GREEN + "Successfully unbanned " + ChatColor.YELLOW + cleanName));
                 } else {
-                    try {
-                        UUID u = UUID.fromString(targetName);
-                        DatabaseManager.BanInfo uuidInfo = dbManager.getBanInfo(u);
-                        if (uuidInfo != null) {
-                            dbManager.removeBan(u);
-
-                            if (uuidInfo.reasonKey != null) {
-                                dbManager.resetOffenseCount(u.toString(), uuidInfo.reasonKey);
-                            }
-
-                            if (plugin.getApiServer() != null) {
-                                plugin.getApiServer().broadcastUnban(
-                                        uuidInfo.playerName != null ? uuidInfo.playerName : u.toString(),
-                                        sender.getName());
-                            }
-
-                            plugin.getSchedulerAdapter().runTask(() -> sender
-                                    .sendMessage(
-                                            ChatColor.GREEN + "Successfully unbanned UUID " + ChatColor.YELLOW + u));
-                            return;
-                        }
-                    } catch (IllegalArgumentException ignored) {
-                    }
-
                     plugin.getSchedulerAdapter().runTask(
                             () -> sender.sendMessage(ChatColor.RED + "No active ban found for '" + targetName + "'."));
                 }
@@ -319,14 +335,13 @@ public class OffendPlugin implements CommandExecutor, TabCompleter {
                     OfflinePlayer target = resolveOfflinePlayer(targetName);
 
                     if (target == null) {
-                        sender.sendMessage(
-                                ChatColor.RED + "Player '" + targetName + "' does not exist (Mojang lookup failed).");
-                        return;
+                        UUID fallbackUuid = UUID.nameUUIDFromBytes(("OfflinePlayer:" + targetName).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                        target = Bukkit.getOfflinePlayer(fallbackUuid);
                     }
 
                     if (!target.hasPlayedBefore() && !target.isOnline()) {
                         sender.sendMessage(
-                                ChatColor.YELLOW + "Warning: " + targetName + " has never played on this server.");
+                                ChatColor.YELLOW + "Note: " + targetName + " has never played on this server before. Ban registered.");
                     }
                     processOffend(sender, target, targetName, finalReasonKey, finalOverrideDuration);
                 } catch (Throwable t) {
@@ -679,12 +694,67 @@ public class OffendPlugin implements CommandExecutor, TabCompleter {
     }
 
     public OfflinePlayer resolveOfflinePlayer(String name) {
-
-        UUID uuid = fetchUUID(name);
-        if (uuid != null) {
-            return Bukkit.getOfflinePlayer(uuid);
+        if (name == null || name.trim().isEmpty()) {
+            return null;
         }
-        return null;
+
+        // 1. Check online players
+        Player online = Bukkit.getPlayerExact(name);
+        if (online != null) {
+            return online;
+        }
+        online = Bukkit.getPlayer(name);
+        if (online != null) {
+            return online;
+        }
+
+        // 2. Check Bukkit's local player cache (players who have joined before)
+        try {
+            OfflinePlayer cached = Bukkit.getOfflinePlayerIfCached(name);
+            if (cached != null) {
+                return cached;
+            }
+        } catch (Throwable ignored) {
+        }
+
+        for (OfflinePlayer op : Bukkit.getOfflinePlayers()) {
+            if (op.getName() != null && op.getName().equalsIgnoreCase(name)) {
+                return op;
+            }
+        }
+
+        // 3. Check Floodgate API via reflection (Bedrock players)
+        if (Bukkit.getPluginManager().isPluginEnabled("floodgate")) {
+            try {
+                Class<?> floodgateApiClass = Class.forName("org.geysermc.floodgate.api.FloodgateApi");
+                Object api = floodgateApiClass.getMethod("getInstance").invoke(null);
+                if (api != null) {
+                    Object fPlayer = floodgateApiClass.getMethod("getPlayer", String.class).invoke(api, name);
+                    if (fPlayer != null) {
+                        Class<?> fPlayerClass = fPlayer.getClass();
+                        UUID fUuid = (UUID) fPlayerClass.getMethod("getCorrectUniqueId").invoke(fPlayer);
+                        if (fUuid != null) {
+                            return Bukkit.getOfflinePlayer(fUuid);
+                        }
+                    }
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+
+        // 4. Try Mojang API for standard Java names (names not starting with '.' or '*')
+        boolean isBedrockPrefix = name.startsWith(".") || name.startsWith("*");
+        if (!isBedrockPrefix && name.matches("^[a-zA-Z0-9_]{1,16}$")) {
+            UUID mojangUuid = fetchUUID(name);
+            if (mojangUuid != null) {
+                return Bukkit.getOfflinePlayer(mojangUuid);
+            }
+        }
+
+        // 5. Fallback for non-existent / offline / Bedrock / unregistered players:
+        // Always generate a deterministic offline UUID so the ban is ALWAYS registered and saved
+        UUID offlineUuid = UUID.nameUUIDFromBytes(("OfflinePlayer:" + name).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        return Bukkit.getOfflinePlayer(offlineUuid);
     }
 
     private UUID fetchUUID(String name) {

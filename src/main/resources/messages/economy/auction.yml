@@ -1,0 +1,36 @@
+# ============================================================
+# Available Placeholders:
+#   {seller}          - Seller name
+#   {buyer}           - Buyer name
+#   {item}            - Item display name
+#   {count}           - Current listed items count
+#   {max}             - Maximum listings allowed
+#   {priceFormatted}  - Formatted price amount
+# ============================================================
+
+messages:
+  must-hold-item: "&#ff4444You must hold an item to sell!"
+  max-price-exceeded: "&#ff4444Price exceeds the maximum allowed limit!"
+  no-self-purchase: "&#ff4444You cannot purchase your own item!"
+  item-not-available: "&#ff4444Item is no longer available."
+  insufficient-funds: "&#ff4444You do not have enough money."
+  disabled-item: "&#ff4444You cannot sell that item!"
+  max-listings: "&#ff4444You already have {count}/{max} items listed!"
+  listing-success: "&#44ff44Item listed for sale at &#ffffff${priceFormatted}&#44ff44!"
+  purchase-success: "&fYou bought &a{seller}'s&f {item} &ffor &a${priceFormatted}"
+  returned-item: "&#44ff44Your listing has been returned to you."
+  inventory-full: "&#ff4444Your inventory is full!"
+  sold-notify: "&a{buyer}&f bought your &a{item}&f for &a${priceFormatted}"
+  sold-notify-offline: "&a{buyer}&f bought your &a{item}&f for &a${priceFormatted}&f while you were away"
+  sold-notify-offline-multi: "&fYou earned &a${priceFormatted}&f from auction while you were away"
+  search-prompt: "&#44ffffPlease type &#ffffffitem name &#44ffffto search."
+
+sounds:
+  prev-page: "ITEM_BOOK_PAGE_TURN"
+  next-page: "ITEM_BOOK_PAGE_TURN"
+  refresh: "UI_TOAST_IN"
+  default-button: "UI_BUTTON_CLICK"
+  search: "UI_BUTTON_CLICK"
+  confirm-sell: "UI_CARTOGRAPHY_TABLE_TAKE_RESULT"
+  villager-no: "ENTITY_VILLAGER_NO"
+  sale-notify: "ENTITY_EXPERIENCE_ORB_PICKUP"

@@ -1,0 +1,13 @@
+# ============================================================
+# Available Placeholders:
+#   {spawn}     - Spawn name or number
+#   {seconds}   - Countdown seconds
+# ============================================================
+
+messages:
+  teleport-countdown: "&fTeleporting in &b{seconds}"
+  teleport-success: "&7You teleport to &#A9833Dѕᴘᴀᴡɴ {spawn}"
+
+sounds:
+  click: "BLOCK_TRIPWIRE_CLICK_ON"
+  teleport: "ENTITY_ENDERMAN_TELEPORT"

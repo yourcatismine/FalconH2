@@ -80,7 +80,7 @@ public class AHCommand implements CommandExecutor, org.bukkit.command.TabComplet
             }
             ItemStack held = player.getInventory().getItemInMainHand();
             if (held == null || held.getType().isAir()) {
-                player.sendMessage(Utils.formatColors("&#ff4444You must hold an item to sell!"));
+                player.sendMessage(Utils.formatColors(this.controller.getMessage("must-hold-item", "&#ff4444You must hold an item to sell!")));
                 player.playSound(player.getLocation(), villagerNo, 1.0f, 1.0f);
                 return true;
             }

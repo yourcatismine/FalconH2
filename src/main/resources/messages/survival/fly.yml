@@ -1,0 +1,12 @@
+# ============================================================
+# Available Placeholders:
+#   {player}    - Player name
+# ============================================================
+
+messages:
+  only-players: "&cOnly players can use this command."
+  no-permission: "&cYou do not have permission to use this command."
+  disabled-in-world: "&cFlight is disabled in this world."
+
+sounds:
+  error: "ENTITY_VILLAGER_NO"

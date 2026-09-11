@@ -1,0 +1,12 @@
+# ============================================================
+# Available Placeholders:
+#   {count}     - Number of online players
+#   {player}    - Player name
+#   {world}     - World display name
+# ============================================================
+
+messages:
+  no-permission: "&cNo permission."
+  no-players-online: "&cNo players are currently online."
+  online-players-count: "&c Online Players: &f{count}"
+  player-entry: "&c Player: &f{player} &c| World: &f{world}"

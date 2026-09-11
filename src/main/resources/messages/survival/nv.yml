@@ -1,0 +1,13 @@
+# ============================================================
+# Available Placeholders:
+#   {player}    - Player name
+# ============================================================
+
+messages:
+  only-players: "&cOnly players can use this command."
+  nightvision-on: "&7You turned on nightvision."
+  nightvision-off: "&7You turned off nightvision."
+
+sounds:
+  on: "BLOCK_BEACON_ACTIVATE"
+  off: "BLOCK_BEACON_DEACTIVATE"

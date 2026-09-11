@@ -1,0 +1,18 @@
+# ============================================================
+# Available Placeholders:
+#   %amount%       - Total sold money amount
+# ============================================================
+
+messages:
+  only-players: "&cOnly players can use this command!"
+  sold-total: "#00f900+$%amount%"
+  sold-total-action-bar: "#00f900+$%amount%"
+  sold-total-title: ""
+  sold-total-subtitle: ""
+  cannot-be-sold: "&cThis item cannot be sold."
+  nothing-to-sell: "&cYou have nothing to sell"
+  inventory-full-dropped: "&cInventory full! Some items were dropped."
+
+sounds:
+  button-click: "UI_BUTTON_CLICK"
+  sell-success: "ENTITY_EXPERIENCE_ORB_PICKUP"

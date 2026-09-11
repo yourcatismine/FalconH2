@@ -2,14 +2,19 @@ package com.h2ph.managers;
 
 import com.github.retrooper.packetevents.PacketEvents;
 import com.github.retrooper.packetevents.protocol.player.User;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerDisplayScoreboard;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerScoreboardObjective;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerTeams;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerUpdateScore;
 import com.h2ph.Falcon;
 import com.h2ph.utils.LuckPermsUtils;
+import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
+import org.bukkit.Statistic;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
@@ -19,18 +24,116 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 
 import java.io.File;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Optional;
-import java.util.UUID;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class NametagManager implements Listener {
+    private static final String OBJECTIVE_NAME = "FalconBN";
+
+    private static boolean modernScoreSupported = false;
+    private static Method scoreFormatStaticMethod = null;
+    private static Method packetSetFormatMethod = null;
+    private static Method packetSetDisplayNameMethod = null;
+    private static boolean formatParamIsOptional = false;
+    private static boolean displayParamIsOptional = false;
+
+    static {
+        try {
+            Class<?> scorePacketClass = WrapperPlayServerUpdateScore.class;
+            Class<?> scoreFormatClass = null;
+            try {
+                scoreFormatClass = Class.forName("com.github.retrooper.packetevents.protocol.score.ScoreFormat");
+            } catch (Throwable ignored) {}
+
+            if (scoreFormatClass != null) {
+                for (Method sm : scoreFormatClass.getMethods()) {
+                    if (Modifier.isStatic(sm.getModifiers()) && sm.getParameterCount() == 1
+                            && sm.getParameterTypes()[0].equals(Component.class)) {
+                        if (sm.getName().toLowerCase().contains("fixed") || sm.getName().toLowerCase().contains("component")) {
+                            scoreFormatStaticMethod = sm;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            for (Method m : scorePacketClass.getMethods()) {
+                String name = m.getName();
+                if ((name.equals("setFormat") || name.equals("setNumberFormat") || name.equals("setScoreFormat")) && m.getParameterCount() == 1) {
+                    packetSetFormatMethod = m;
+                    formatParamIsOptional = m.getParameterTypes()[0].equals(Optional.class);
+                    modernScoreSupported = true;
+                }
+                if ((name.equals("setDisplayName") || name.equals("setDisplay")) && m.getParameterCount() == 1) {
+                    packetSetDisplayNameMethod = m;
+                    displayParamIsOptional = m.getParameterTypes()[0].equals(Optional.class);
+                    modernScoreSupported = true;
+                }
+            }
+        } catch (Throwable ignored) {}
+    }
+
     private final Falcon plugin;
     private boolean enabled;
     private boolean belowNameEnabled;
     private String belowNameFormat;
     private String format;
-    private io.papermc.paper.threadedregions.scheduler.ScheduledTask task;
+    private ScheduledTask task;
+
+    private String belowNameScoreType;
+    private boolean bnHasPing;
+    private boolean bnHasHealth;
+    private boolean bnHasMoney;
+    private boolean bnHasShards;
+    private boolean bnHasPlaytime;
+    private boolean bnHasKills;
+    private boolean bnHasDeath;
+    private boolean bnHasTeam;
+    private boolean bnHasPapi;
+
+    private boolean fmtHasPing;
+    private boolean fmtHasHealth;
+    private boolean fmtHasMoney;
+    private boolean fmtHasShards;
+    private boolean fmtHasPlaytime;
+    private boolean fmtHasKills;
+    private boolean fmtHasDeath;
+    private boolean fmtHasTeam;
+    private boolean fmtHasPapi;
+
+    private final Map<UUID, Long> weightCacheTime = new ConcurrentHashMap<>();
+    private final Map<UUID, Integer> weightCache = new ConcurrentHashMap<>();
+    private final Map<String, String> disguisePrefixCache = new ConcurrentHashMap<>();
+
+    private static class CachedNametag {
+        String realTeamName = "";
+        String realPrefix = "";
+        String realSuffix = "";
+        NamedTextColor realColor = NamedTextColor.WHITE;
+
+        boolean isDisguised = false;
+        String disguiseName = "";
+        String disguiseTeamName = "";
+        String disguisePrefix = "";
+        String disguiseSuffix = "";
+        NamedTextColor disguiseColor = NamedTextColor.WHITE;
+
+        WrapperPlayServerTeams realCreatePacket;
+        WrapperPlayServerTeams realUpdatePacket;
+        WrapperPlayServerTeams disguiseCreatePacket;
+        WrapperPlayServerTeams disguiseUpdatePacket;
+    }
+
+    private static class CachedBelowName {
+        int score = Integer.MIN_VALUE;
+        String formattedText = "";
+        WrapperPlayServerUpdateScore updatePacket;
+    }
+
+    private final Map<UUID, CachedNametag> nametagCache = new ConcurrentHashMap<>();
+    private final Map<UUID, CachedBelowName> belowNameCache = new ConcurrentHashMap<>();
 
     public NametagManager(Falcon plugin) {
         this.plugin = plugin;
@@ -39,7 +142,7 @@ public class NametagManager implements Listener {
         startTask();
     }
 
-    public void loadConfig() {
+    public synchronized void loadConfig() {
         File configFile = new File(plugin.getDataFolder(), "scoreboard/config.yml");
         FileConfiguration config = YamlConfiguration.loadConfiguration(configFile);
         enabled = config.getBoolean("NICKNAME-FORMAT.ENABLED", false);
@@ -51,6 +154,33 @@ public class NametagManager implements Listener {
             format = config.getString("NICKNAME-FORMAT.FORMAT", "{prefix} {gamertag}");
         }
 
+        belowNameScoreType = extractScoreType(belowNameFormat);
+        bnHasPing = belowNameFormat.contains("{ping}");
+        bnHasHealth = belowNameFormat.contains("{health}");
+        bnHasMoney = belowNameFormat.contains("{money}");
+        bnHasShards = belowNameFormat.contains("{shards}");
+        bnHasPlaytime = belowNameFormat.contains("{playtime}");
+        bnHasKills = belowNameFormat.contains("{kills}");
+        bnHasDeath = belowNameFormat.contains("{death}");
+        bnHasTeam = belowNameFormat.contains("{team}");
+        bnHasPapi = belowNameFormat.contains("%");
+
+        fmtHasPing = format.contains("{ping}");
+        fmtHasHealth = format.contains("{health}");
+        fmtHasMoney = format.contains("{money}");
+        fmtHasShards = format.contains("{shards}");
+        fmtHasPlaytime = format.contains("{playtime}");
+        fmtHasKills = format.contains("{kills}");
+        fmtHasDeath = format.contains("{death}");
+        fmtHasTeam = format.contains("{team}");
+        fmtHasPapi = format.contains("%");
+
+        nametagCache.clear();
+        belowNameCache.clear();
+        weightCache.clear();
+        weightCacheTime.clear();
+        disguisePrefixCache.clear();
+
         for (Player viewer : Bukkit.getOnlinePlayers()) {
             if (belowNameEnabled) {
                 removeBelowNameFor(viewer);
@@ -58,8 +188,16 @@ public class NametagManager implements Listener {
             } else {
                 removeBelowNameFor(viewer);
             }
-            if (enabled) {
-                updateNametagsFor(viewer);
+        }
+
+        if (enabled || belowNameEnabled) {
+            for (Player player : Bukkit.getOnlinePlayers()) {
+                if (enabled) {
+                    processNametagFor(player, true);
+                }
+                if (belowNameEnabled) {
+                    processBelowNameFor(player, true);
+                }
             }
         }
     }
@@ -67,67 +205,119 @@ public class NametagManager implements Listener {
     private void removeBelowNameFor(Player viewer) {
         User user = PacketEvents.getAPI().getPlayerManager().getUser(viewer);
         if (user != null) {
-            com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerScoreboardObjective objPacket = 
-                new com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerScoreboardObjective(
-                    "FalconBN",
-                    com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerScoreboardObjective.ObjectiveMode.REMOVE,
-                    net.kyori.adventure.text.Component.empty(),
-                    com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerScoreboardObjective.RenderType.INTEGER,
+            WrapperPlayServerScoreboardObjective objPacket = new WrapperPlayServerScoreboardObjective(
+                    OBJECTIVE_NAME,
+                    WrapperPlayServerScoreboardObjective.ObjectiveMode.REMOVE,
+                    Component.empty(),
+                    WrapperPlayServerScoreboardObjective.RenderType.INTEGER,
                     null
-                );
+            );
             user.sendPacket(objPacket);
         }
     }
 
     private void startTask() {
-        task = plugin.getServer().getGlobalRegionScheduler().runAtFixedRate(plugin, (t) -> {
-            if (!enabled) return;
+        task = plugin.getServer().getAsyncScheduler().runAtFixedRate(plugin, (t) -> {
+            if (!enabled && !belowNameEnabled) return;
             for (Player player : Bukkit.getOnlinePlayers()) {
-                updateNametagsFor(player);
+                if (!player.isOnline()) continue;
+                if (enabled) {
+                    processNametagFor(player, false);
+                }
                 if (belowNameEnabled) {
-                    updateBelowNameFor(player);
+                    processBelowNameFor(player, false);
                 }
             }
-        }, 20L, 20L);
+        }, 1L, 1L, java.util.concurrent.TimeUnit.SECONDS);
     }
 
     public void shutdown() {
         if (task != null) {
             task.cancel();
         }
+        nametagCache.clear();
+        belowNameCache.clear();
     }
 
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
+        Player player = event.getPlayer();
+        if (belowNameEnabled) {
+            setupBelowNameFor(player);
+        }
+
+        User joiningUser = PacketEvents.getAPI().getPlayerManager().getUser(player);
+        if (joiningUser != null) {
+            for (Player other : Bukkit.getOnlinePlayers()) {
+                if (other.equals(player)) continue;
+
+                if (enabled) {
+                    CachedNametag otherTag = nametagCache.get(other.getUniqueId());
+                    if (otherTag != null) {
+                        boolean showDisguise = otherTag.isDisguised && !player.hasPermission("falcon.disguise.see");
+                        WrapperPlayServerTeams createPacket = (showDisguise && otherTag.disguiseCreatePacket != null)
+                                ? otherTag.disguiseCreatePacket : otherTag.realCreatePacket;
+                        if (createPacket != null) {
+                            joiningUser.sendPacket(createPacket);
+                        }
+                    }
+                }
+
+                if (belowNameEnabled) {
+                    CachedBelowName otherBelow = belowNameCache.get(other.getUniqueId());
+                    if (otherBelow != null && otherBelow.updatePacket != null) {
+                        joiningUser.sendPacket(otherBelow.updatePacket);
+                    }
+                }
+            }
+        }
+
         if (enabled) {
-            updateNametagsFor(event.getPlayer());
+            processNametagFor(player, true);
         }
         if (belowNameEnabled) {
-            setupBelowNameFor(event.getPlayer());
+            processBelowNameFor(player, true);
         }
     }
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
-        if (enabled) {
-            String teamName = "nt_" + event.getPlayer().getName();
-            if (teamName.length() > 16) teamName = teamName.substring(0, 16);
-            WrapperPlayServerTeams removeTeamPacket = new WrapperPlayServerTeams(
-                    teamName,
+        Player player = event.getPlayer();
+        UUID uuid = player.getUniqueId();
+
+        CachedNametag oldTag = nametagCache.remove(uuid);
+        belowNameCache.remove(uuid);
+        weightCache.remove(uuid);
+        weightCacheTime.remove(uuid);
+
+        if (enabled && oldTag != null) {
+            WrapperPlayServerTeams removeReal = new WrapperPlayServerTeams(
+                    oldTag.realTeamName,
                     WrapperPlayServerTeams.TeamMode.REMOVE,
                     Optional.empty(),
                     Collections.emptyList()
             );
-            for (Player p : Bukkit.getOnlinePlayers()) {
-                User user = PacketEvents.getAPI().getPlayerManager().getUser(p);
+            WrapperPlayServerTeams removeDisguise = (oldTag.isDisguised && !oldTag.disguiseTeamName.equals(oldTag.realTeamName))
+                    ? new WrapperPlayServerTeams(oldTag.disguiseTeamName, WrapperPlayServerTeams.TeamMode.REMOVE, Optional.empty(), Collections.emptyList())
+                    : null;
+
+            for (Player viewer : Bukkit.getOnlinePlayers()) {
+                if (viewer.equals(player)) continue;
+                User user = PacketEvents.getAPI().getPlayerManager().getUser(viewer);
                 if (user != null) {
-                    user.sendPacket(removeTeamPacket);
+                    user.sendPacket(removeReal);
+                    if (removeDisguise != null) {
+                        user.sendPacket(removeDisguise);
+                    }
                 }
             }
         }
     }
-    private void updateNametagsFor(Player target) {
-        com.falconcore.survival.manager.PlayerData pd = plugin.getPlayerDataManager().get(target.getUniqueId());
+
+    private void processNametagFor(Player target, boolean forceCreate) {
+        if (!target.isOnline()) return;
+        com.falconcore.survival.manager.PlayerData pd = (fmtHasMoney || fmtHasShards || fmtHasTeam)
+                ? plugin.getPlayerDataManager().get(target.getUniqueId()) : null;
         boolean isDisguised = pd != null && pd.isDisguised();
 
         String realPrefix = LuckPermsUtils.getPrefix(target);
@@ -139,16 +329,144 @@ public class NametagManager implements Listener {
         if (isDisguised) {
             disguiseName = pd.getDisguiseName();
             if (disguiseName != null) {
-                org.bukkit.OfflinePlayer disguiseTarget = org.bukkit.Bukkit.getOfflinePlayer(disguiseName);
-                disguisePrefix = LuckPermsUtils.getPrefix(disguiseTarget);
-                if (disguisePrefix == null) disguisePrefix = "";
+                disguisePrefix = getCachedOrLookupPrefix(disguiseName);
             }
+        }
+
+        int weight = getLuckPermsWeight(target.getUniqueId());
+
+        String[] realParsed = parseFormat(target, format, realPrefix, realName, pd);
+        String realPrefixPart = realParsed[0];
+        String realSuffixPart = realParsed[1];
+        String realTeamName = createTeamName(weight, realName);
+        NamedTextColor realTeamColor = getLastColor(realPrefixPart);
+
+        String disguisePrefixPart = "";
+        String disguiseSuffixPart = "";
+        String disguiseTeamName = "";
+        NamedTextColor disguiseTeamColor = NamedTextColor.WHITE;
+        if (isDisguised && disguiseName != null) {
+            String[] disguiseParsed = parseFormat(target, format, disguisePrefix, disguiseName, pd);
+            disguisePrefixPart = disguiseParsed[0];
+            disguiseSuffixPart = disguiseParsed[1];
+            disguiseTeamName = createTeamName(weight, disguiseName);
+            disguiseTeamColor = getLastColor(disguisePrefixPart);
+        }
+
+        CachedNametag cached = nametagCache.get(target.getUniqueId());
+        boolean isNew = (cached == null);
+
+        if (!isNew && !forceCreate) {
+            boolean realUnchanged = cached.realTeamName.equals(realTeamName)
+                    && cached.realPrefix.equals(realPrefixPart)
+                    && cached.realSuffix.equals(realSuffixPart)
+                    && cached.realColor.equals(realTeamColor);
+
+            boolean disguiseUnchanged = (cached.isDisguised == isDisguised)
+                    && Objects.equals(cached.disguiseName, disguiseName)
+                    && (!isDisguised || (cached.disguiseTeamName.equals(disguiseTeamName)
+                    && cached.disguisePrefix.equals(disguisePrefixPart)
+                    && cached.disguiseSuffix.equals(disguiseSuffixPart)
+                    && cached.disguiseColor.equals(disguiseTeamColor)));
+
+            if (realUnchanged && disguiseUnchanged) {
+                return;
+            }
+        }
+
+        boolean realTeamNameChanged = (cached != null && !cached.realTeamName.equals(realTeamName));
+        boolean disguiseTeamNameChanged = (cached != null && cached.isDisguised && !cached.disguiseTeamName.equals(disguiseTeamName));
+
+        if (realTeamNameChanged || disguiseTeamNameChanged) {
+            if (cached != null) {
+                WrapperPlayServerTeams removeOldReal = new WrapperPlayServerTeams(cached.realTeamName, WrapperPlayServerTeams.TeamMode.REMOVE, Optional.empty(), Collections.emptyList());
+                WrapperPlayServerTeams removeOldDisguise = cached.isDisguised ? new WrapperPlayServerTeams(cached.disguiseTeamName, WrapperPlayServerTeams.TeamMode.REMOVE, Optional.empty(), Collections.emptyList()) : null;
+                for (Player viewer : Bukkit.getOnlinePlayers()) {
+                    User user = PacketEvents.getAPI().getPlayerManager().getUser(viewer);
+                    if (user != null) {
+                        user.sendPacket(removeOldReal);
+                        if (removeOldDisguise != null) {
+                            user.sendPacket(removeOldDisguise);
+                        }
+                    }
+                }
+            }
+        }
+
+        WrapperPlayServerTeams realCreate = buildTeamPacket(realTeamName, realName, realPrefixPart, realSuffixPart, realTeamColor, WrapperPlayServerTeams.TeamMode.CREATE);
+        WrapperPlayServerTeams realUpdate = buildTeamPacket(realTeamName, realName, realPrefixPart, realSuffixPart, realTeamColor, WrapperPlayServerTeams.TeamMode.UPDATE);
+
+        WrapperPlayServerTeams disguiseCreate = (isDisguised && disguiseName != null)
+                ? buildTeamPacket(disguiseTeamName, disguiseName, disguisePrefixPart, disguiseSuffixPart, disguiseTeamColor, WrapperPlayServerTeams.TeamMode.CREATE)
+                : null;
+        WrapperPlayServerTeams disguiseUpdate = (isDisguised && disguiseName != null)
+                ? buildTeamPacket(disguiseTeamName, disguiseName, disguisePrefixPart, disguiseSuffixPart, disguiseTeamColor, WrapperPlayServerTeams.TeamMode.UPDATE)
+                : null;
+
+        CachedNametag newCache = (cached != null) ? cached : new CachedNametag();
+        newCache.realTeamName = realTeamName;
+        newCache.realPrefix = realPrefixPart;
+        newCache.realSuffix = realSuffixPart;
+        newCache.realColor = realTeamColor;
+        newCache.isDisguised = isDisguised;
+        newCache.disguiseName = disguiseName;
+        newCache.disguiseTeamName = disguiseTeamName;
+        newCache.disguisePrefix = disguisePrefixPart;
+        newCache.disguiseSuffix = disguiseSuffixPart;
+        newCache.disguiseColor = disguiseTeamColor;
+        newCache.realCreatePacket = realCreate;
+        newCache.realUpdatePacket = realUpdate;
+        newCache.disguiseCreatePacket = disguiseCreate;
+        newCache.disguiseUpdatePacket = disguiseUpdate;
+        nametagCache.put(target.getUniqueId(), newCache);
+
+        boolean needCreate = isNew || forceCreate || realTeamNameChanged || disguiseTeamNameChanged;
+
+        for (Player viewer : Bukkit.getOnlinePlayers()) {
+            User user = PacketEvents.getAPI().getPlayerManager().getUser(viewer);
+            if (user != null) {
+                boolean showDisguise = isDisguised && (!viewer.hasPermission("falcon.disguise.see") || viewer.equals(target));
+                if (needCreate) {
+                    WrapperPlayServerTeams packet = (showDisguise && disguiseCreate != null) ? disguiseCreate : realCreate;
+                    user.sendPacket(packet);
+                } else {
+                    WrapperPlayServerTeams packet = (showDisguise && disguiseUpdate != null) ? disguiseUpdate : realUpdate;
+                    user.sendPacket(packet);
+                }
+            }
+        }
+    }
+
+    private String getCachedOrLookupPrefix(String disguiseName) {
+        String cached = disguisePrefixCache.get(disguiseName);
+        if (cached != null) return cached;
+
+        String prefix = "";
+        try {
+            net.luckperms.api.LuckPerms lp = net.luckperms.api.LuckPermsProvider.get();
+            net.luckperms.api.model.user.User u = lp.getUserManager().getUser(disguiseName);
+            if (u != null) {
+                String p = u.getCachedData().getMetaData().getPrefix();
+                if (p != null) prefix = p;
+            }
+        } catch (Throwable ignored) {}
+
+        disguisePrefixCache.put(disguiseName, prefix);
+        return prefix;
+    }
+
+    private int getLuckPermsWeight(UUID uuid) {
+        Long lastCheck = weightCacheTime.get(uuid);
+        long now = System.currentTimeMillis();
+        if (lastCheck != null && (now - lastCheck) < 10000L) { // 10s TTL
+            Integer w = weightCache.get(uuid);
+            if (w != null) return w;
         }
 
         int weight = 99;
         try {
             net.luckperms.api.LuckPerms lp = net.luckperms.api.LuckPermsProvider.get();
-            net.luckperms.api.model.user.User u = lp.getUserManager().getUser(target.getUniqueId());
+            net.luckperms.api.model.user.User u = lp.getUserManager().getUser(uuid);
             if (u != null) {
                 String groupName = u.getPrimaryGroup();
                 net.luckperms.api.model.group.Group g = lp.getGroupManager().getGroup(groupName);
@@ -160,62 +478,116 @@ public class NametagManager implements Listener {
             }
         } catch (Throwable ignored) {}
 
-        WrapperPlayServerTeams realTeamPacketCreate = buildTeamPacket(target, realPrefix, realName, weight, WrapperPlayServerTeams.TeamMode.CREATE);
-        WrapperPlayServerTeams realTeamPacketUpdate = buildTeamPacket(target, realPrefix, realName, weight, WrapperPlayServerTeams.TeamMode.UPDATE);
-        WrapperPlayServerTeams disguiseTeamPacketCreate = null;
-        WrapperPlayServerTeams disguiseTeamPacketUpdate = null;
-        
-        if (isDisguised && disguiseName != null) {
-            disguiseTeamPacketCreate = buildTeamPacket(target, disguisePrefix, disguiseName, weight, WrapperPlayServerTeams.TeamMode.CREATE);
-            disguiseTeamPacketUpdate = buildTeamPacket(target, disguisePrefix, disguiseName, weight, WrapperPlayServerTeams.TeamMode.UPDATE);
-        }
+        weightCache.put(uuid, weight);
+        weightCacheTime.put(uuid, now);
+        return weight;
+    }
 
-        for (Player viewer : Bukkit.getOnlinePlayers()) {
-            User user = PacketEvents.getAPI().getPlayerManager().getUser(viewer);
-            if (user != null) {
-                boolean showDisguise = isDisguised && (!viewer.hasPermission("falcon.disguise.see") || viewer.equals(target));
+    private String createTeamName(int weight, String gamertag) {
+        String teamName = String.format("%02d_%s", weight, gamertag);
+        return teamName.length() > 16 ? teamName.substring(0, 16) : teamName;
+    }
 
-                WrapperPlayServerTeams createPacket = (showDisguise && disguiseTeamPacketCreate != null) ? disguiseTeamPacketCreate : realTeamPacketCreate;
-                WrapperPlayServerTeams updatePacket = (showDisguise && disguiseTeamPacketUpdate != null) ? disguiseTeamPacketUpdate : realTeamPacketUpdate;
-                
-                user.sendPacket(createPacket);
-                user.sendPacket(updatePacket);
+    private String[] parseFormat(Player target, String rawTemplate, String prefix, String gamertag, com.falconcore.survival.manager.PlayerData pd) {
+        String raw = rawTemplate;
+        if (fmtHasPing) raw = raw.replace("{ping}", String.valueOf(target.getPing()));
+        if (fmtHasHealth) raw = raw.replace("{health}", String.valueOf((int) target.getHealth()));
+        if (fmtHasMoney) raw = raw.replace("{money}", pd != null ? com.falconcore.survival.utils.NumberUtils.format(pd.getMoney()) : "0");
+        if (fmtHasShards) raw = raw.replace("{shards}", pd != null ? com.falconcore.survival.utils.NumberUtils.format(pd.getShards()) : "0");
+        if (fmtHasPlaytime) raw = raw.replace("{playtime}", formatPlaytime(target.getStatistic(Statistic.PLAY_ONE_MINUTE) / 20L));
+        if (fmtHasKills) raw = raw.replace("{kills}", com.falconcore.survival.utils.NumberUtils.format(target.getStatistic(Statistic.PLAYER_KILLS)));
+        if (fmtHasDeath) raw = raw.replace("{death}", com.falconcore.survival.utils.NumberUtils.format(target.getStatistic(Statistic.DEATHS)));
+        if (fmtHasTeam) {
+            if (pd != null && pd.getTeamId() != null) {
+                com.h2ph.teams.Team team = plugin.getTeamManager().getTeam(pd.getTeamId());
+                if (team != null) {
+                    String teamName = team.getName();
+                    if (!teamName.contains("&") && !teamName.contains("§") && !teamName.contains("#")) {
+                        teamName = "&6" + teamName;
+                    }
+                    raw = raw.replace("{team}", teamName);
+                } else {
+                    raw = raw.replace("{team}", "&6None");
+                }
+            } else {
+                raw = raw.replace("{team}", "&6None");
             }
         }
+
+        String prefixPart = "";
+        String suffixPart = "";
+        if (raw.contains("{gamertag}")) {
+            String[] split = raw.split("\\{gamertag\\}");
+            prefixPart = split.length > 0 ? split[0] : "";
+            suffixPart = split.length > 1 ? split[1] : "";
+
+            prefixPart = prefixPart.replace("{prefix}", prefix);
+            suffixPart = suffixPart.replace("{prefix}", prefix);
+
+            if (fmtHasPapi && Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")) {
+                prefixPart = me.clip.placeholderapi.PlaceholderAPI.setPlaceholders(target, prefixPart);
+                suffixPart = me.clip.placeholderapi.PlaceholderAPI.setPlaceholders(target, suffixPart);
+            }
+
+            prefixPart = ChatColor.translateAlternateColorCodes('&', prefixPart);
+            suffixPart = ChatColor.translateAlternateColorCodes('&', suffixPart);
+        } else {
+            prefixPart = ChatColor.translateAlternateColorCodes('&', raw.replace("{prefix}", prefix));
+            if (fmtHasPapi && Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")) {
+                prefixPart = me.clip.placeholderapi.PlaceholderAPI.setPlaceholders(target, prefixPart);
+            }
+        }
+
+        return new String[]{prefixPart, suffixPart};
+    }
+
+    private WrapperPlayServerTeams buildTeamPacket(String teamName, String gamertag, String prefixPart, String suffixPart, NamedTextColor teamColor, WrapperPlayServerTeams.TeamMode mode) {
+        Component prefixComp = LegacyComponentSerializer.legacySection().deserialize(prefixPart);
+        Component suffixComp = LegacyComponentSerializer.legacySection().deserialize(suffixPart);
+
+        WrapperPlayServerTeams.ScoreBoardTeamInfo teamInfo = new WrapperPlayServerTeams.ScoreBoardTeamInfo(
+                Component.text(teamName),
+                prefixComp,
+                suffixComp,
+                WrapperPlayServerTeams.NameTagVisibility.ALWAYS,
+                WrapperPlayServerTeams.CollisionRule.NEVER,
+                teamColor,
+                WrapperPlayServerTeams.OptionData.NONE
+        );
+
+        return new WrapperPlayServerTeams(
+                teamName,
+                mode,
+                Optional.of(teamInfo),
+                mode == WrapperPlayServerTeams.TeamMode.CREATE ? Collections.singletonList(gamertag) : Collections.emptyList()
+        );
     }
 
     private void setupBelowNameFor(Player viewer) {
         User user = PacketEvents.getAPI().getPlayerManager().getUser(viewer);
         if (user != null) {
-            String scoreType = extractScoreType(belowNameFormat);
+            String scoreType = belowNameScoreType;
             String suffix = belowNameFormat;
             if (scoreType != null) {
                 suffix = suffix.replace("{" + scoreType + "}", "");
             }
             suffix = ChatColor.translateAlternateColorCodes('&', suffix);
-            
-            Component objDisplayName;
-            if (supportsModernScoreFormatting()) {
-                objDisplayName = Component.empty();
-            } else {
-                objDisplayName = LegacyComponentSerializer.legacySection().deserialize(suffix);
-            }
-            
-            com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerScoreboardObjective objPacket = 
-                new com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerScoreboardObjective(
-                    "FalconBN",
-                    com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerScoreboardObjective.ObjectiveMode.CREATE,
+
+            Component objDisplayName = modernScoreSupported ? Component.empty() : LegacyComponentSerializer.legacySection().deserialize(suffix);
+
+            WrapperPlayServerScoreboardObjective objPacket = new WrapperPlayServerScoreboardObjective(
+                    OBJECTIVE_NAME,
+                    WrapperPlayServerScoreboardObjective.ObjectiveMode.CREATE,
                     objDisplayName,
-                    com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerScoreboardObjective.RenderType.INTEGER,
+                    WrapperPlayServerScoreboardObjective.RenderType.INTEGER,
                     null
-                );
+            );
             user.sendPacket(objPacket);
-            
-            com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerDisplayScoreboard displayPacket = 
-                new com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerDisplayScoreboard(
-                    2, // BELOW_NAME
-                    "FalconBN"
-                );
+
+            WrapperPlayServerDisplayScoreboard displayPacket = new WrapperPlayServerDisplayScoreboard(
+                    2,
+                    OBJECTIVE_NAME
+            );
             user.sendPacket(displayPacket);
         }
     }
@@ -231,60 +603,91 @@ public class NametagManager implements Listener {
         return null;
     }
 
-    private void updateBelowNameFor(Player target) {
-        String scoreType = extractScoreType(belowNameFormat);
+    private void processBelowNameFor(Player target, boolean forceBroadcast) {
+        if (!target.isOnline()) return;
+
         int score = 0;
-        if (scoreType != null) {
-            switch (scoreType) {
+        if (belowNameScoreType != null) {
+            switch (belowNameScoreType) {
                 case "ping": score = target.getPing(); break;
                 case "health": score = (int) target.getHealth(); break;
-                case "money": 
-                    com.falconcore.survival.manager.PlayerData pd = plugin.getPlayerDataManager().get(target.getUniqueId());
-                    score = pd != null ? (int) pd.getMoney() : 0;
+                case "money":
+                    if (bnHasMoney) {
+                        com.falconcore.survival.manager.PlayerData pd = plugin.getPlayerDataManager().get(target.getUniqueId());
+                        score = pd != null ? (int) pd.getMoney() : 0;
+                    }
                     break;
-                case "shards": 
-                    com.falconcore.survival.manager.PlayerData pd2 = plugin.getPlayerDataManager().get(target.getUniqueId());
-                    score = pd2 != null ? (int) pd2.getShards() : 0;
+                case "shards":
+                    if (bnHasShards) {
+                        com.falconcore.survival.manager.PlayerData pd = plugin.getPlayerDataManager().get(target.getUniqueId());
+                        score = pd != null ? (int) pd.getShards() : 0;
+                    }
                     break;
-                case "kills": score = target.getStatistic(org.bukkit.Statistic.PLAYER_KILLS); break;
-                case "death": score = target.getStatistic(org.bukkit.Statistic.DEATHS); break;
-                case "playtime": score = target.getStatistic(org.bukkit.Statistic.PLAY_ONE_MINUTE) / 72000; break;
+                case "kills":
+                    if (bnHasKills) score = target.getStatistic(Statistic.PLAYER_KILLS);
+                    break;
+                case "death":
+                    if (bnHasDeath) score = target.getStatistic(Statistic.DEATHS);
+                    break;
+                case "playtime":
+                    if (bnHasPlaytime) score = (int) (target.getStatistic(Statistic.PLAY_ONE_MINUTE) / 72000L);
+                    break;
             }
         }
-        
-        String fullString = belowNameFormat;
-        com.falconcore.survival.manager.PlayerData pd = plugin.getPlayerDataManager().get(target.getUniqueId());
-        
-        fullString = fullString.replace("{ping}", String.valueOf(target.getPing()));
-        fullString = fullString.replace("{health}", String.valueOf((int) target.getHealth()));
-        fullString = fullString.replace("{money}", pd != null ? com.falconcore.survival.utils.NumberUtils.format(pd.getMoney()) : "0");
-        fullString = fullString.replace("{shards}", pd != null ? com.falconcore.survival.utils.NumberUtils.format(pd.getShards()) : "0");
-        fullString = fullString.replace("{playtime}", formatPlaytime(target.getStatistic(org.bukkit.Statistic.PLAY_ONE_MINUTE) / 20L));
-        fullString = fullString.replace("{kills}", com.falconcore.survival.utils.NumberUtils.format(target.getStatistic(org.bukkit.Statistic.PLAYER_KILLS)));
-        fullString = fullString.replace("{death}", com.falconcore.survival.utils.NumberUtils.format(target.getStatistic(org.bukkit.Statistic.DEATHS)));
-        if (pd != null && pd.getTeamId() != null) {
-            com.h2ph.teams.Team team = plugin.getTeamManager().getTeam(pd.getTeamId());
-            fullString = fullString.replace("{team}", team != null ? team.getName() : "None");
-        } else {
-            fullString = fullString.replace("{team}", "None");
+
+        CachedBelowName cached = belowNameCache.get(target.getUniqueId());
+
+        // Fast path: if score hasn't changed and no live PAPI/playtime placeholders exist, avoid re-evaluating
+        if (!forceBroadcast && cached != null && cached.score == score && !bnHasPapi && !bnHasPlaytime) {
+            return;
         }
-        
-        if (Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")) {
+
+        String fullString = belowNameFormat;
+        com.falconcore.survival.manager.PlayerData pd = (bnHasMoney || bnHasShards || bnHasTeam)
+                ? plugin.getPlayerDataManager().get(target.getUniqueId()) : null;
+
+        if (bnHasPing) fullString = fullString.replace("{ping}", String.valueOf(target.getPing()));
+        if (bnHasHealth) fullString = fullString.replace("{health}", String.valueOf((int) target.getHealth()));
+        if (bnHasMoney) fullString = fullString.replace("{money}", pd != null ? com.falconcore.survival.utils.NumberUtils.format(pd.getMoney()) : "0");
+        if (bnHasShards) fullString = fullString.replace("{shards}", pd != null ? com.falconcore.survival.utils.NumberUtils.format(pd.getShards()) : "0");
+        if (bnHasPlaytime) fullString = fullString.replace("{playtime}", formatPlaytime(target.getStatistic(Statistic.PLAY_ONE_MINUTE) / 20L));
+        if (bnHasKills) fullString = fullString.replace("{kills}", com.falconcore.survival.utils.NumberUtils.format(target.getStatistic(Statistic.PLAYER_KILLS)));
+        if (bnHasDeath) fullString = fullString.replace("{death}", com.falconcore.survival.utils.NumberUtils.format(target.getStatistic(Statistic.DEATHS)));
+        if (bnHasTeam) {
+            if (pd != null && pd.getTeamId() != null) {
+                com.h2ph.teams.Team team = plugin.getTeamManager().getTeam(pd.getTeamId());
+                fullString = fullString.replace("{team}", team != null ? team.getName() : "None");
+            } else {
+                fullString = fullString.replace("{team}", "None");
+            }
+        }
+
+        if (bnHasPapi && Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")) {
             fullString = me.clip.placeholderapi.PlaceholderAPI.setPlaceholders(target, fullString);
         }
         fullString = ChatColor.translateAlternateColorCodes('&', fullString);
+
+        if (!forceBroadcast && cached != null && cached.score == score && cached.formattedText.equals(fullString)) {
+            return;
+        }
+
         Component customComponent = LegacyComponentSerializer.legacySection().deserialize(fullString);
-        
-        com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerUpdateScore updatePacket = 
-            new com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerUpdateScore(
+
+        WrapperPlayServerUpdateScore updatePacket = new WrapperPlayServerUpdateScore(
                 target.getName(),
-                com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerUpdateScore.Action.CREATE_OR_UPDATE_ITEM,
-                "FalconBN",
+                WrapperPlayServerUpdateScore.Action.CREATE_OR_UPDATE_ITEM,
+                OBJECTIVE_NAME,
                 Optional.of(score)
-            );
-            
-        apply1_20_3Formatting(updatePacket, customComponent);
-            
+        );
+
+        applyModernScoreFormatting(updatePacket, customComponent);
+
+        CachedBelowName newCache = (cached != null) ? cached : new CachedBelowName();
+        newCache.score = score;
+        newCache.formattedText = fullString;
+        newCache.updatePacket = updatePacket;
+        belowNameCache.put(target.getUniqueId(), newCache);
+
         for (Player viewer : Bukkit.getOnlinePlayers()) {
             User user = PacketEvents.getAPI().getPlayerManager().getUser(viewer);
             if (user != null) {
@@ -293,72 +696,29 @@ public class NametagManager implements Listener {
         }
     }
 
-    private boolean supportsModernScoreFormatting() {
+    private void applyModernScoreFormatting(WrapperPlayServerUpdateScore packet, Component customComponent) {
+        if (!modernScoreSupported) return;
         try {
-            Class<?> scorePacketClass = com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerUpdateScore.class;
-            for (java.lang.reflect.Method m : scorePacketClass.getMethods()) {
-                if (m.getName().equals("setFormat") || m.getName().equals("setNumberFormat") || m.getName().equals("setScoreFormat")) {
-                    return true;
-                }
-                if (m.getName().equals("setDisplayName") || m.getName().equals("setDisplay")) {
-                    return true;
+            if (packetSetFormatMethod != null && scoreFormatStaticMethod != null) {
+                Object formatObj = scoreFormatStaticMethod.invoke(null, customComponent);
+                if (formatObj != null) {
+                    if (formatParamIsOptional) {
+                        packetSetFormatMethod.invoke(packet, Optional.of(formatObj));
+                    } else {
+                        packetSetFormatMethod.invoke(packet, formatObj);
+                    }
+                    return;
                 }
             }
-        } catch (Throwable t) {}
-        return false;
-    }
 
-    private void apply1_20_3Formatting(com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerUpdateScore packet, Component customComponent) {
-        try {
-            boolean applied = false;
-            for (java.lang.reflect.Method m : packet.getClass().getMethods()) {
-                if (m.getName().equals("setFormat") || m.getName().equals("setNumberFormat") || m.getName().equals("setScoreFormat")) {
-                    if (m.getParameterCount() == 1) {
-                        Class<?> paramType = m.getParameterTypes()[0];
-                        Class<?> scoreFormatClass = null;
-                        try {
-                            scoreFormatClass = Class.forName("com.github.retrooper.packetevents.protocol.score.ScoreFormat");
-                        } catch (Exception e) {}
-                        
-                        if (scoreFormatClass != null) {
-                            Object formatObj = null;
-                            for (java.lang.reflect.Method sm : scoreFormatClass.getMethods()) {
-                                if (java.lang.reflect.Modifier.isStatic(sm.getModifiers()) && sm.getParameterCount() == 1 && sm.getParameterTypes()[0].equals(Component.class)) {
-                                    if (sm.getName().toLowerCase().contains("fixed") || sm.getName().toLowerCase().contains("component")) {
-                                        formatObj = sm.invoke(null, customComponent);
-                                        break;
-                                    }
-                                }
-                            }
-                            if (formatObj != null) {
-                                if (paramType.equals(Optional.class)) {
-                                    m.invoke(packet, Optional.of(formatObj));
-                                    applied = true;
-                                } else if (paramType.isAssignableFrom(scoreFormatClass)) {
-                                    m.invoke(packet, formatObj);
-                                    applied = true;
-                                }
-                            }
-                        }
-                    }
+            if (packetSetDisplayNameMethod != null) {
+                if (displayParamIsOptional) {
+                    packetSetDisplayNameMethod.invoke(packet, Optional.of(customComponent));
+                } else {
+                    packetSetDisplayNameMethod.invoke(packet, customComponent);
                 }
             }
-            if (!applied) {
-                for (java.lang.reflect.Method m : packet.getClass().getMethods()) {
-                    if (m.getName().equals("setDisplayName") || m.getName().equals("setDisplay")) {
-                        if (m.getParameterCount() == 1) {
-                            Class<?> paramType = m.getParameterTypes()[0];
-                            if (paramType.equals(Optional.class)) {
-                                m.invoke(packet, Optional.of(customComponent));
-                            } else if (paramType.equals(Component.class)) {
-                                m.invoke(packet, customComponent);
-                            }
-                        }
-                    }
-                }
-            }
-        } catch (Throwable t) {
-        }
+        } catch (Throwable ignored) {}
     }
 
     private NamedTextColor getLastColor(String text) {
@@ -390,100 +750,6 @@ public class NametagManager implements Listener {
             case 'e': return NamedTextColor.YELLOW;
             default: return NamedTextColor.WHITE;
         }
-    }
-
-    private WrapperPlayServerTeams buildTeamPacket(Player target, String prefix, String gamertag, int weight, WrapperPlayServerTeams.TeamMode mode) {
-        String prefixPart = "";
-        String suffixPart = "";
-
-        String rawFormat = format;
-
-        com.falconcore.survival.manager.PlayerData pd = plugin.getPlayerDataManager().get(target.getUniqueId());
-        if (rawFormat.contains("{ping}")) {
-            rawFormat = rawFormat.replace("{ping}", String.valueOf(target.getPing()));
-        }
-        if (rawFormat.contains("{health}")) {
-            rawFormat = rawFormat.replace("{health}", String.valueOf((int) target.getHealth()));
-        }
-        if (rawFormat.contains("{money}")) {
-            rawFormat = rawFormat.replace("{money}", pd != null ? com.falconcore.survival.utils.NumberUtils.format(pd.getMoney()) : "0");
-        }
-        if (rawFormat.contains("{shards}")) {
-            rawFormat = rawFormat.replace("{shards}", pd != null ? com.falconcore.survival.utils.NumberUtils.format(pd.getShards()) : "0");
-        }
-        if (rawFormat.contains("{playtime}")) {
-            int ticks = target.getStatistic(org.bukkit.Statistic.PLAY_ONE_MINUTE);
-            rawFormat = rawFormat.replace("{playtime}", formatPlaytime(ticks / 20L));
-        }
-        if (rawFormat.contains("{kills}")) {
-            rawFormat = rawFormat.replace("{kills}", com.falconcore.survival.utils.NumberUtils.format(target.getStatistic(org.bukkit.Statistic.PLAYER_KILLS)));
-        }
-        if (rawFormat.contains("{death}")) {
-            rawFormat = rawFormat.replace("{death}", com.falconcore.survival.utils.NumberUtils.format(target.getStatistic(org.bukkit.Statistic.DEATHS)));
-        }
-        if (rawFormat.contains("{team}")) {
-            if (pd != null && pd.getTeamId() != null) {
-                com.h2ph.teams.Team team = plugin.getTeamManager().getTeam(pd.getTeamId());
-                if (team != null) {
-                    String teamName = team.getName();
-                    if (!teamName.contains("&") && !teamName.contains("§") && !teamName.contains("#")) {
-                        teamName = "&6" + teamName;
-                    }
-                    rawFormat = rawFormat.replace("{team}", teamName);
-                } else {
-                    rawFormat = rawFormat.replace("{team}", "&6None");
-                }
-            } else {
-                rawFormat = rawFormat.replace("{team}", "&6None");
-            }
-        }
-
-        if (rawFormat.contains("{gamertag}")) {
-            String[] split = rawFormat.split("\\{gamertag\\}");
-            prefixPart = split.length > 0 ? split[0] : "";
-            suffixPart = split.length > 1 ? split[1] : "";
-
-            prefixPart = prefixPart.replace("{prefix}", prefix);
-            suffixPart = suffixPart.replace("{prefix}", prefix);
-
-            if (Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")) {
-                prefixPart = me.clip.placeholderapi.PlaceholderAPI.setPlaceholders(target, prefixPart);
-                suffixPart = me.clip.placeholderapi.PlaceholderAPI.setPlaceholders(target, suffixPart);
-            }
-
-            prefixPart = ChatColor.translateAlternateColorCodes('&', prefixPart);
-            suffixPart = ChatColor.translateAlternateColorCodes('&', suffixPart);
-        } else {
-            prefixPart = ChatColor.translateAlternateColorCodes('&', rawFormat.replace("{prefix}", prefix));
-            if (Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")) {
-                prefixPart = me.clip.placeholderapi.PlaceholderAPI.setPlaceholders(target, prefixPart);
-            }
-        }
-
-        String teamName = String.format("%02d_%s", weight, gamertag);
-        if (teamName.length() > 16) teamName = teamName.substring(0, 16);
-
-        NamedTextColor teamColor = getLastColor(prefixPart);
-
-        Component prefixComp = LegacyComponentSerializer.legacySection().deserialize(prefixPart);
-        Component suffixComp = LegacyComponentSerializer.legacySection().deserialize(suffixPart);
-
-        WrapperPlayServerTeams.ScoreBoardTeamInfo teamInfo = new WrapperPlayServerTeams.ScoreBoardTeamInfo(
-                Component.text(teamName),
-                prefixComp,
-                suffixComp,
-                WrapperPlayServerTeams.NameTagVisibility.ALWAYS,
-                WrapperPlayServerTeams.CollisionRule.NEVER,
-                teamColor,
-                WrapperPlayServerTeams.OptionData.NONE
-        );
-
-        return new WrapperPlayServerTeams(
-                teamName,
-                mode,
-                Optional.of(teamInfo),
-                mode == WrapperPlayServerTeams.TeamMode.CREATE ? Arrays.asList(gamertag) : Collections.emptyList()
-        );
     }
 
     private String formatPlaytime(long totalSeconds) {

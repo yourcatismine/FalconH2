@@ -13,6 +13,10 @@ import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.file.YamlConfiguration;
+
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -21,9 +25,39 @@ import java.util.stream.Collectors;
 public class EconomyCommand implements CommandExecutor, TabCompleter {
 
     private final Falcon plugin;
+    private FileConfiguration config;
+    private File configFile;
 
     public EconomyCommand(Falcon plugin) {
         this.plugin = plugin;
+        loadConfig();
+    }
+
+    public void loadConfig() {
+        configFile = new File(plugin.getDataFolder(), "messages/economy/economy.yml");
+        if (!configFile.exists()) {
+            plugin.saveResource("messages/economy/economy.yml", false);
+        }
+        config = YamlConfiguration.loadConfiguration(configFile);
+    }
+
+    private String getMessage(String path, String def) {
+        if (config == null)
+            return def;
+        return config.getString("messages." + path, def);
+    }
+
+    private org.bukkit.Sound getSound(String key, org.bukkit.Sound def) {
+        if (config == null)
+            return def;
+        String soundName = config.getString("sounds." + key);
+        if (soundName == null || soundName.isEmpty())
+            return def;
+        try {
+            return org.bukkit.Sound.valueOf(soundName.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return def;
+        }
     }
 
     @Override
@@ -31,12 +65,14 @@ public class EconomyCommand implements CommandExecutor, TabCompleter {
             @NotNull String[] args) {
 
         if (!sender.hasPermission("falcon.economy")) {
-            sender.sendMessage(ChatColor.RED + "You do not have permission to use this command.");
+            sender.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                    getMessage("no-permission", "&cYou do not have permission to use this command.")));
             return true;
         }
 
         if (args.length < 3) {
-            sender.sendMessage(ChatColor.RED + "Usage: /economy <give|set|remove> <player> <amount>");
+            sender.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                    getMessage("usage", "&cUsage: /economy <give|set|remove> <player> <amount>")));
             return true;
         }
 
@@ -86,31 +122,34 @@ public class EconomyCommand implements CommandExecutor, TabCompleter {
         double amount;
 
         if (args.length < 3) {
-            sender.sendMessage(ChatColor.RED + "Usage: /economy <give|set|remove> <player> <amount>");
-            playSound(sender, org.bukkit.Sound.ENTITY_VILLAGER_NO);
+            sender.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                    getMessage("usage", "&cUsage: /economy <give|set|remove> <player> <amount>")));
+            playSound(sender, getSound("error", org.bukkit.Sound.ENTITY_VILLAGER_NO));
             return true;
         }
 
         try {
             amount = parseAmount(amountStr);
         } catch (NumberFormatException e) {
-            sender.sendMessage(
-                    ChatColor.RED + "Invalid amount! Examples: 100h, 10k, 1.5m");
-            playSound(sender, org.bukkit.Sound.ENTITY_VILLAGER_NO);
+            sender.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                    getMessage("invalid-amount", "&cInvalid amount! Examples: 100h, 10k, 1.5m")));
+            playSound(sender, getSound("error", org.bukkit.Sound.ENTITY_VILLAGER_NO));
             return true;
         }
 
         if (!isAdminAction(action)) {
-            sender.sendMessage(ChatColor.RED + "Invalid action! Use: give, set, remove");
-            playSound(sender, org.bukkit.Sound.ENTITY_VILLAGER_NO);
+            sender.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                    getMessage("invalid-action", "&cInvalid action! Use: give, set, remove")));
+            playSound(sender, getSound("error", org.bukkit.Sound.ENTITY_VILLAGER_NO));
             return true;
         }
 
         OfflinePlayer target = Bukkit.getOfflinePlayer(targetName);
 
         if (!target.hasPlayedBefore() && !target.isOnline()) {
-            sender.sendMessage(ChatColor.RED + "That user does not exist.");
-            playSound(sender, org.bukkit.Sound.ENTITY_VILLAGER_NO);
+            sender.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                    getMessage("player-not-found", "&cThat user does not exist.")));
+            playSound(sender, getSound("error", org.bukkit.Sound.ENTITY_VILLAGER_NO));
             return true;
         }
 
@@ -122,34 +161,41 @@ public class EconomyCommand implements CommandExecutor, TabCompleter {
             case "give":
                 newMoney = currentMoney + amount;
                 data.setMoney(newMoney, "Admin Adjustment");
-                sender.sendMessage(ChatColor.GREEN + "Gave " + ChatColor.GOLD + "$" + formatNumber(amount) +
-                        ChatColor.GREEN + " to " + ChatColor.YELLOW + targetName +
-                        ChatColor.GREEN + ". New balance: " + ChatColor.GOLD + "$" + formatNumber(newMoney));
+                sender.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                        getMessage("give-success", "&aGave &6${amount} &ato &e{player}&a. New balance: &6${balance}")
+                                .replace("{amount}", formatNumber(amount))
+                                .replace("{player}", targetName)
+                                .replace("{balance}", formatNumber(newMoney))));
                 break;
 
             case "set":
                 newMoney = amount;
                 data.setMoney(newMoney, "Admin Adjustment");
-                sender.sendMessage(ChatColor.GREEN + "Set " + ChatColor.YELLOW + targetName +
-                        ChatColor.GREEN + "'s balance to " + ChatColor.GOLD + "$" + formatNumber(newMoney));
+                sender.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                        getMessage("set-success", "&aSet &e{player}&a's balance to &6${balance}")
+                                .replace("{player}", targetName)
+                                .replace("{balance}", formatNumber(newMoney))));
                 break;
 
             case "remove":
                 newMoney = Math.max(0, currentMoney - amount);
                 data.setMoney(newMoney, "Admin Adjustment");
                 double actualRemoved = currentMoney - newMoney;
-                sender.sendMessage(ChatColor.GREEN + "Removed " + ChatColor.GOLD + "$" + formatNumber(actualRemoved) +
-                        ChatColor.GREEN + " from " + ChatColor.YELLOW + targetName +
-                        ChatColor.GREEN + ". New balance: " + ChatColor.GOLD + "$" + formatNumber(newMoney));
+                sender.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                        getMessage("remove-success", "&aRemoved &6${amount} &afrom &e{player}&a. New balance: &6${balance}")
+                                .replace("{amount}", formatNumber(actualRemoved))
+                                .replace("{player}", targetName)
+                                .replace("{balance}", formatNumber(newMoney))));
                 break;
         }
 
         plugin.getPlayerDataManager().savePlayerAsync(target.getUniqueId());
-        playSound(sender, org.bukkit.Sound.ENTITY_EXPERIENCE_ORB_PICKUP);
+        playSound(sender, getSound("success", org.bukkit.Sound.ENTITY_EXPERIENCE_ORB_PICKUP));
 
         if (target.isOnline() && target.getPlayer() != null) {
-            target.getPlayer().sendMessage(ChatColor.GRAY + "Your balance has been updated to " +
-                    ChatColor.GREEN + "$" + formatNumber(newMoney));
+            target.getPlayer().sendMessage(ChatColor.translateAlternateColorCodes('&',
+                    getMessage("target-updated", "&7Your balance has been updated to &a${balance}")
+                            .replace("{balance}", formatNumber(newMoney))));
         }
 
         return true;

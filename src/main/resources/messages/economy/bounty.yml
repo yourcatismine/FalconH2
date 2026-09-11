@@ -1,0 +1,23 @@
+# ============================================================
+# Available Placeholders:
+#   {sender}   - Bounty setter name
+#   {target}   - Target player name
+#   {victim}   - Killed player name
+#   {money}    - Formatted bounty amount
+# ============================================================
+
+messages:
+  only-players: "&cOnly players can use this command."
+  insufficient-funds: "&cYou do not have enough money."
+  player-ignored: "&7You are ignored by this player."
+  cannot-claim-teammate: "&cYou cannot claim a bounty on your teammate!"
+  bounty-claimed: "&7You claimed a bounty of &a${money} &7for killing &#A9833D{victim}&7!"
+  bounty-cancelled: "&cBounty placement cancelled."
+  bounty-added-sender: "&7You added &a${money} &7bounty to &4{target}&7."
+  bounty-added-target: "&d{sender}&7 added &a${money} &7to your bounty."
+
+sounds:
+  error: "ENTITY_VILLAGER_NO"
+  click: "BLOCK_TRIPWIRE_CLICK_ON"
+  page-turn: "ITEM_BOOK_PAGE_TURN"
+  refresh: "UI_TOAST_IN"

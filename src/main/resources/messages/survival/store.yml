@@ -1,0 +1,10 @@
+# ============================================================
+# Available Placeholders:
+#   {player}    - Player name
+# ============================================================
+
+messages:
+  store-link: "&fCheck out our store: &ahttps://falcon.tebex.io/"
+
+sounds:
+  none: ""

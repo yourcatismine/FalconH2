@@ -166,7 +166,7 @@ public class SellGUI
                 for (Category category : Category.values()) {
                     if (this.plugin.getGUIManager().getCategorySlot(category.getKey()) == slot) {
                         event.setCancelled(true);
-                        player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.0f);
+                        player.playSound(player.getLocation(), this.plugin.getSound("button-click", Sound.UI_BUTTON_CLICK), 1.0f, 1.0f);
                         this.plugin.getProgressGUI().openCategoryGUI(player, category);
                         return;
                     }
@@ -304,17 +304,17 @@ public class SellGUI
             this.plugin.getPlayerDataManager().savePlayerDataAsync(player.getUniqueId());
 
             String formattedAmount = MessageUtil.formatMoney(totalSold);
-            String chatMsg = this.plugin.getConfig().getString("messages.sold-total");
+            String chatMsg = this.plugin.getMessage("sold-total", "#00f900+$%amount%");
             if (chatMsg != null && !chatMsg.isEmpty()) {
                 player.sendMessage(MessageUtil.colorize(chatMsg.replace("%amount%", formattedAmount)));
             }
 
-            String actionBarMsg = this.plugin.getConfig().getString("messages.sold-total-action-bar");
+            String actionBarMsg = this.plugin.getMessage("sold-total-action-bar", "#00f900+$%amount%");
             if (actionBarMsg != null && !actionBarMsg.isEmpty()) {
                 MessageUtil.sendActionBar(player, actionBarMsg.replace("%amount%", formattedAmount));
             }
 
-            player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f, 2.0f);
+            player.playSound(player.getLocation(), this.plugin.getSound("sell-success", Sound.ENTITY_EXPERIENCE_ORB_PICKUP), 1.0f, 2.0f);
 
             PlayerData data = this.plugin.getPlayerDataManager().getPlayerData(player.getUniqueId());
             for (Map.Entry<Category, Double> entry : categoryProgressToAdd.entrySet()) {
@@ -338,7 +338,7 @@ public class SellGUI
                 for (ItemStack drop : leftOver.values()) {
                     player.getWorld().dropItemNaturally(player.getLocation(), drop);
                 }
-                player.sendMessage(MessageUtil.colorize("&cInventory full! Some items were dropped."));
+                player.sendMessage(MessageUtil.colorize(this.plugin.getMessage("inventory-full-dropped", "&cInventory full! Some items were dropped.")));
             }
         }
     }

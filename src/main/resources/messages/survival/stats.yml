@@ -1,0 +1,11 @@
+# ============================================================
+# Available Placeholders:
+#   {player}    - Player name
+# ============================================================
+
+messages:
+  only-players: "&cOnly players can use this command."
+  player-not-found: "&cThat user does not exist."
+
+sounds:
+  error: "ENTITY_VILLAGER_NO"

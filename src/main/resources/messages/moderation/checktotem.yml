@@ -1,0 +1,14 @@
+# ============================================================
+# Available Placeholders:
+#   {player}    - Target player name
+# ============================================================
+
+messages:
+  player-not-online: "&cThat player is not online."
+  player-not-found: "&cThat player does not exist."
+  no-totem-offhand: "&7{player} does not have a totem in their offhand."
+
+sounds:
+  error: "ENTITY_VILLAGER_NO"
+  pickup: "ENTITY_ITEM_PICKUP"
+  break: "ENTITY_ITEM_BREAK"

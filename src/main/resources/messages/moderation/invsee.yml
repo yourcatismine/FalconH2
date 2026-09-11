@@ -1,0 +1,11 @@
+# ============================================================
+# Available Placeholders:
+#   {player}    - Target player name
+# ============================================================
+
+messages:
+  no-permission: "&cYou do not have permission to use this command."
+  usage-invsee: "&cUsage: /invsee <player>"
+  usage-endersee: "&cUsage: /endersee <player>"
+  player-not-found-invsee: "&cPlayer not found or offline."
+  player-not-found-endersee: "&cPlayer not found."

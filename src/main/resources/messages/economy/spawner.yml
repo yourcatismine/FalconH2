@@ -1,0 +1,28 @@
+# ============================================================
+# Available Placeholders:
+#   %player%   - Player name
+#   %amount%   - Amount of items / stack count
+#   %count%    - Count of spawners stacked
+#   %xp%       - XP points collected
+#   %money%    - Total money earned
+# ============================================================
+
+messages:
+  no_permission: "&cYou don't have permission to do that."
+  not_owner: "&cYou are not the owner of this spawner."
+  spawner_given: "&aSpawner given to %player%."
+  invalid_type: "&cInvalid spawner type."
+  merged: "&aSpawners merged."
+  collected: "&aCollected %amount% items and %xp% XP."
+  sold: "&aSold items for %money%."
+  cannot_mine_without_silk: "&cYou need a tool with Silk Touch to mine this spawner."
+  spawner_broken: "&aSpawner broken."
+  spawner_stacked: "&aYou stacked a spawner, now at %amount%x"
+  spawner_stacked_multi: "&aYou stacked %count%x spawner, now at %amount%x"
+  spawner_viewed: "&cThe spawner is currently being viewed by a player."
+  no_items_to_sell: "&cThere are no items to sell."
+
+sounds:
+  error: "ENTITY_VILLAGER_NO"
+  spawner-stack: "BLOCK_AMETHYST_BLOCK_CHIME"
+  spawner-break: "BLOCK_ANVIL_USE"

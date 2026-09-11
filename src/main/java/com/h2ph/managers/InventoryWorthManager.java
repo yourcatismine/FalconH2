@@ -247,7 +247,7 @@ public class InventoryWorthManager {
     }
 
     public boolean stripFromItem(ItemStack item) {
-        if (item == null || item.getType() == Material.AIR) return false;
+        if (item == null || item.getType() == Material.AIR || !item.hasItemMeta()) return false;
 
         ItemMeta meta = item.getItemMeta();
         if (meta == null || !meta.hasLore()) return false;

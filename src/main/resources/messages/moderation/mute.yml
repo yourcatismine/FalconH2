@@ -1,0 +1,25 @@
+# ============================================================
+# Available Placeholders:
+#   {player}        - Target player name
+#   {type}          - Mute type (chat or voice)
+#   {duration}      - Duration string (e.g. 10s, 1m, 1d, 1y)
+#   {reason}        - Reason for mute
+# ============================================================
+
+messages:
+  no-permission: "&cYou don't have permission to use this command."
+  usage-mute: "&cUsage: /mute <chat|voice> <player> <duration> [reason]"
+  usage-unmute: "&cUsage: /unmute <chat|voice> <player>"
+  usage-checkmute: "&cUsage: /checkmute <player>"
+  invalid-duration: "&cInvalid duration format. Use 10s, 1m, 1d, 1y etc."
+  player-data-not-found: "&cCould not find player data for {player}"
+  player-never-played: "&cPlayer '{player}' has never played on this server."
+  not-muted-chat: "&c{player} is not chat muted."
+  not-muted-voice: "&c{player} is not voice muted."
+  mute-admin: "&7You muted &d{player}&7's {type} for &f{duration}&7 Reason:&c {reason}"
+  mute-target: "&7Your {type} has been muted for &f{duration}&7 Reason:&c {reason}"
+  unmute-admin: "&d{player}&7 has been {type}unmuted."
+  unmute-target: "&7You have been {type}unmuted."
+
+sounds:
+  target-muted: "BLOCK_NOTE_BLOCK_BASS"

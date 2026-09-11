@@ -1,0 +1,17 @@
+# ============================================================
+# Available Placeholders:
+#   {amount}   - Item quantity / reward amount
+#   {item}     - Item display name
+# ============================================================
+
+messages:
+  only-players: "&cOnly players can use Billford."
+  missing-items: "&cMissing items! Place items in the input area and an output in Slot 25."
+  trade-saved: "&aBillford Trade Saved!"
+  insufficient-items: "&cYou do not have all the required contents."
+  trade-success: "&7Traded for &f{amount}x &f{item}"
+
+sounds:
+  click: "BLOCK_TRIPWIRE_CLICK_ON"
+  error: "ENTITY_VILLAGER_NO"
+  admin-save: "ENTITY_PLAYER_LEVELUP"

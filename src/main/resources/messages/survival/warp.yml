@@ -1,0 +1,14 @@
+# ============================================================
+# Available Placeholders:
+#   {warp}      - Warp name
+#   {seconds}   - Countdown seconds
+# ============================================================
+
+messages:
+  only-players: "&cOnly players can use this command."
+  teleport-countdown: "&7Teleporting in &b{seconds}"
+  teleport-success: "&7You were teleported to warp &b{warp}&7."
+
+sounds:
+  error: "ENTITY_VILLAGER_NO"
+  click: "BLOCK_TRIPWIRE_CLICK_ON"

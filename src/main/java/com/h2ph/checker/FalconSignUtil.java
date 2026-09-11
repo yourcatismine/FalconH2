@@ -15,9 +15,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Low-level utility for sign editor manipulation and NMS block entity authorization.
- */
 public class FalconSignUtil {
 
     public static void setAllowedEditor(Location loc, UUID playerUUID, Plugin plugin) {
@@ -105,18 +102,6 @@ public class FalconSignUtil {
         if (player == null || !player.isOnline()) return;
 
         try {
-            if (loc.getBlock().getState() instanceof org.bukkit.block.Sign sign) {
-                try {
-                    player.openSign(sign, org.bukkit.block.sign.Side.FRONT);
-                    return;
-                } catch (Throwable t) {
-                    player.openSign(sign);
-                    return;
-                }
-            }
-        } catch (Throwable ignored) {}
-
-        try {
             int x = loc.getBlockX();
             int y = loc.getBlockY();
             int z = loc.getBlockZ();
@@ -127,9 +112,15 @@ public class FalconSignUtil {
     }
 
     public static void closeEditor(Player player) {
+        if (player == null || !player.isOnline()) return;
         try {
             WrapperPlayServerCloseWindow packet = new WrapperPlayServerCloseWindow(0);
             PacketEvents.getAPI().getPlayerManager().sendPacket(player, packet);
+        } catch (Throwable ignored) {}
+        try {
+            org.bukkit.inventory.Inventory dummy = org.bukkit.Bukkit.createInventory(null, 9, net.kyori.adventure.text.Component.empty());
+            player.openInventory(dummy);
+            player.closeInventory();
         } catch (Throwable ignored) {}
     }
 

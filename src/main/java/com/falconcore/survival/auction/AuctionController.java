@@ -20,6 +20,8 @@ public class AuctionController {
     private FileConfiguration filterConfig;
     private File configFile;
     private FileConfiguration config;
+    private File messagesFile;
+    private FileConfiguration messagesConfig;
 
     public AuctionController(Falcon plugin) {
         this.plugin = plugin;
@@ -27,6 +29,7 @@ public class AuctionController {
 
     public void enable() {
         this.loadConfig();
+        this.loadMessagesConfig();
         this.setupFilterFile();
         this.auctionManager = new AuctionManager(this);
         this.transactionManager = new TransactionManager(this);
@@ -74,6 +77,53 @@ public class AuctionController {
         this.config = YamlConfiguration.loadConfiguration(this.configFile);
     }
 
+    public void loadMessagesConfig() {
+        this.messagesFile = new File(plugin.getDataFolder(), "messages/economy/auction.yml");
+        if (!this.messagesFile.exists()) {
+            this.messagesFile.getParentFile().mkdirs();
+            plugin.saveResource("messages/economy/auction.yml", false);
+        }
+        this.messagesConfig = YamlConfiguration.loadConfiguration(this.messagesFile);
+        if (this.config != null && this.messagesConfig != null) {
+            this.config.setDefaults(this.messagesConfig);
+        }
+    }
+
+    public FileConfiguration getMessagesConfig() {
+        if (this.messagesConfig == null) {
+            loadMessagesConfig();
+        }
+        return this.messagesConfig;
+    }
+
+    public String getMessage(String path, String def) {
+        FileConfiguration msgCfg = getMessagesConfig();
+        if (msgCfg != null && msgCfg.contains("messages." + path)) {
+            return msgCfg.getString("messages." + path);
+        }
+        FileConfiguration mainCfg = getConfig();
+        if (mainCfg != null && mainCfg.contains("messages." + path)) {
+            return mainCfg.getString("messages." + path);
+        }
+        return def;
+    }
+
+    public String getMessage(String path) {
+        return getMessage(path, "");
+    }
+
+    public String getSoundName(String path, String def) {
+        FileConfiguration msgCfg = getMessagesConfig();
+        if (msgCfg != null && msgCfg.contains("sounds." + path)) {
+            return msgCfg.getString("sounds." + path);
+        }
+        FileConfiguration mainCfg = getConfig();
+        if (mainCfg != null && mainCfg.contains("sounds." + path)) {
+            return mainCfg.getString("sounds." + path);
+        }
+        return def;
+    }
+
     public FileConfiguration getConfig() {
         if (this.config == null) {
             loadConfig();
@@ -83,6 +133,7 @@ public class AuctionController {
 
     public void reloadConfig() {
         loadConfig();
+        loadMessagesConfig();
     }
 
     private void setupStorageFile() {
@@ -105,6 +156,7 @@ public class AuctionController {
 
     public void reloadAllConfigs() {
         this.reloadConfig();
+        this.loadMessagesConfig();
         this.setupFilterFile();
     }
 

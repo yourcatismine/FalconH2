@@ -1,0 +1,19 @@
+# ============================================================
+# Available Placeholders:
+#   {seconds}   - Teleport countdown seconds
+# ============================================================
+
+messages:
+  only-players: "&cOnly players can use this command."
+  area-full: "&cThis area is full."
+  no-areas: "&cNo AFK areas available."
+  teleport-countdown: "&7Teleporting in &b{seconds}s"
+  teleport-cancelled: "&cTeleport cancelled because you moved."
+  spawn-not-found: "&cSpawn location not found for this map."
+  map-not-found: "&cMap no longer exists."
+
+sounds:
+  error: "ENTITY_VILLAGER_NO"
+  click: "BLOCK_TRIPWIRE_CLICK_OFF"
+  countdown: "BLOCK_NOTE_BLOCK_HAT"
+  teleport: "ENTITY_ENDERMAN_TELEPORT"

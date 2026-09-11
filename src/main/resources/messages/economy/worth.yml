@@ -1,0 +1,15 @@
+# ============================================================
+# Available Placeholders:
+#   {worth}    - Formatted worth amount
+# ============================================================
+
+messages:
+  only-players: "&cOnly players can use this command."
+  worth-hand: "&7Worth::&a ${worth}"
+
+sounds:
+  page-turn: "ITEM_BOOK_PAGE_TURN"
+  button-click: "UI_BUTTON_CLICK"
+  refresh: "UI_TOAST_IN"
+  filter: "ITEM_CHORUS_FRUIT_TELEPORT"
+  item-click: "BLOCK_TRIPWIRE_CLICK_ON"

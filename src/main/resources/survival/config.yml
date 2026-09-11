@@ -60,12 +60,6 @@ disabled-fly:
   - world_nether
   - world_the_end
 
-discord:
-  - "&fJoin our discord: &ahttps://discord.gg/store"
-
-store:
-  - "&fCheck out our store: &ahttps://discord.gg/"
-
 command-whitelist:
   enabled: true
   allowed-commands:

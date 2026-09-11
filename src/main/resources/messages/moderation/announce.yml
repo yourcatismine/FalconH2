@@ -1,0 +1,11 @@
+# ============================================================
+# Available Placeholders:
+#   {message}   - Announcement message content
+# ============================================================
+
+messages:
+  title: "&d&lᴀɴɴᴏᴜɴᴄᴇᴍᴇɴᴛꜱ"
+  subtitle: "{message}"
+
+sounds:
+  error: "ENTITY_VILLAGER_NO"

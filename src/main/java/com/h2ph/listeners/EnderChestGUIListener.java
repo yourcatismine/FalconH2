@@ -67,11 +67,11 @@ public class EnderChestGUIListener implements Listener {
 
         ItemStack[] contents = e.getInventory().getContents().clone();
 
-        player.playSound(player.getLocation(), Sound.BLOCK_ENDER_CHEST_CLOSE, 1f, 1f);
-
         Block sourceBlock = holder.getSourceBlock();
         if (sourceBlock != null) {
             plugin.getEnderChestManager().unregisterViewer(sourceBlock, player);
+        } else {
+            player.playSound(player.getLocation(), Sound.BLOCK_ENDER_CHEST_CLOSE, 1f, 1f);
         }
 
         if (e.getInventory().getViewers().size() <= 1) {

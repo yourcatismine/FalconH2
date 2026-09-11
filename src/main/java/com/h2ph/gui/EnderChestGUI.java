@@ -52,9 +52,10 @@ public class EnderChestGUI {
                 ((EnderChestHolder) inv.getHolder()).setSourceBlock(block);
             }
             viewer.openInventory(inv);
-            viewer.playSound(viewer.getLocation(), Sound.BLOCK_ENDER_CHEST_OPEN, 1f, 1f);
             if (block != null) {
                 plugin.getEnderChestManager().registerViewer(block, viewer);
+            } else {
+                viewer.playSound(viewer.getLocation(), Sound.BLOCK_ENDER_CHEST_OPEN, 1f, 1f);
             }
             return;
         }
@@ -74,10 +75,11 @@ public class EnderChestGUI {
                 }
 
                 viewer.openInventory(finalInv);
-                viewer.playSound(viewer.getLocation(), Sound.BLOCK_ENDER_CHEST_OPEN, 1f, 1f);
 
                 if (block != null) {
                     plugin.getEnderChestManager().registerViewer(block, viewer);
+                } else {
+                    viewer.playSound(viewer.getLocation(), Sound.BLOCK_ENDER_CHEST_OPEN, 1f, 1f);
                 }
             });
         });

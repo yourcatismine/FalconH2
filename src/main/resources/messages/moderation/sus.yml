@@ -1,0 +1,11 @@
+# ============================================================
+# Available Placeholders:
+#   {player}    - Target suspect player name
+# ============================================================
+
+messages:
+  no-permission: "&8ɴᴏ ᴘᴇʀᴍɪꜱꜱɪᴏɴ"
+  console-cannot-use: "&cConsole cannot use GUI."
+  teleported: "&8ꜱᴇᴄᴜʀɪᴛʏ &eᴛᴇʟᴇᴘᴏʀᴛᴇᴅ ᴛᴏ {player}"
+  teleport-failed: "&8ꜱᴇᴄᴜʀɪᴛʏ &cFailed to teleport to {player}"
+  gui-title: "&8ꜱᴜꜱᴘɪᴄɪᴏᴜꜱ ᴀᴄᴛɪᴠɪᴛʏ"

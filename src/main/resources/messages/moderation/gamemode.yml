@@ -1,0 +1,9 @@
+# ============================================================
+# Available Placeholders:
+#   {mode}      - Gamemode name (Creative, Survival, Adventure)
+# ============================================================
+
+messages:
+  only-players: "Only players can use this command."
+  no-permission: "&cYou do not have permission to use this command."
+  gamemode-set: "&7You set your gamemode to &a{mode}&7 mode."

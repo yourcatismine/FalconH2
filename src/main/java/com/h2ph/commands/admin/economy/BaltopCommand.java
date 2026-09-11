@@ -7,7 +7,6 @@ import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.Sound;
-import org.bukkit.Statistic;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -15,31 +14,72 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.SkullMeta;
 import org.jetbrains.annotations.NotNull;
 
+import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.file.YamlConfiguration;
+
+import java.io.File;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class BaltopCommand implements CommandExecutor, Listener {
 
     private final Falcon plugin;
-    private final Map<UUID, Integer> playerPages = new HashMap<>();
-    private final Map<UUID, String> playerSearches = new HashMap<>();
+    private final Map<UUID, Integer> playerPages = new ConcurrentHashMap<>();
+    private final Map<UUID, String> playerSearches = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> refreshCooldowns = new ConcurrentHashMap<>();
+    private final Set<UUID> pendingLoads = ConcurrentHashMap.newKeySet();
 
-    private List<PlayerDataManager.LeaderboardEntry> cachedEntries = null;
-    private long lastCacheTime = 0;
-    private static final long CACHE_DURATION = 30000;
+    // Cache base skull item so meta.setOwningPlayer / Bukkit.getOfflinePlayer is only called once per UUID ever
+    private static final Map<UUID, ItemStack> baseHeadCache = new ConcurrentHashMap<>();
+
+    private volatile List<PlayerDataManager.LeaderboardEntry> cachedEntries = null;
+    private volatile long lastCacheTime = 0;
+    private static final long CACHE_DURATION = 15000; // 15 seconds cache
+
+    private FileConfiguration config;
+    private File configFile;
 
     public BaltopCommand(Falcon plugin) {
         this.plugin = plugin;
+        loadConfig();
+    }
+
+    public void loadConfig() {
+        configFile = new File(plugin.getDataFolder(), "messages/economy/baltop.yml");
+        if (!configFile.exists()) {
+            plugin.saveResource("messages/economy/baltop.yml", false);
+        }
+        config = YamlConfiguration.loadConfiguration(configFile);
+    }
+
+    private String getMessage(String path, String def) {
+        if (config == null)
+            return def;
+        return config.getString("messages." + path, def);
+    }
+
+    private Sound getSound(String key, Sound def) {
+        if (config == null)
+            return def;
+        String soundName = config.getString("sounds." + key);
+        if (soundName == null || soundName.isEmpty())
+            return def;
+        try {
+            return Sound.valueOf(soundName.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return def;
+        }
     }
 
     @Override
@@ -47,7 +87,8 @@ public class BaltopCommand implements CommandExecutor, Listener {
             @NotNull String[] args) {
 
         if (!(sender instanceof Player)) {
-            sender.sendMessage(ChatColor.RED + "This command can only be used by players.");
+            sender.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                    getMessage("only-players", "&cThis command can only be used by players.")));
             return true;
         }
 
@@ -55,8 +96,7 @@ public class BaltopCommand implements CommandExecutor, Listener {
         playerSearches.remove(player.getUniqueId());
 
         openLoadingGUI(player);
-
-        loadDataAsync(player, 1);
+        loadDataAsync(player, 1, false);
         return true;
     }
 
@@ -75,57 +115,101 @@ public class BaltopCommand implements CommandExecutor, Listener {
         player.openInventory(gui);
     }
 
-    private void loadDataAsync(Player player, int page) {
+    private static class RankedEntry {
+        final PlayerDataManager.LeaderboardEntry entry;
+        final int rank;
+
+        RankedEntry(PlayerDataManager.LeaderboardEntry entry, int rank) {
+            this.entry = entry;
+            this.rank = rank;
+        }
+    }
+
+    private void loadDataAsync(Player player, int page, boolean forceRefresh) {
+        UUID playerUuid = player.getUniqueId();
+        if (!pendingLoads.add(playerUuid)) {
+            return; // Already loading for this player
+        }
+
         plugin.getSchedulerAdapter().runTaskAsync(() -> {
-            List<PlayerDataManager.LeaderboardEntry> allEntries;
-            if (cachedEntries != null && (System.currentTimeMillis() - lastCacheTime < CACHE_DURATION)) {
-                allEntries = cachedEntries;
-            } else {
-                allEntries = plugin.getPlayerDataManager().getTopMoney(10000);
-                cachedEntries = allEntries;
-                lastCacheTime = System.currentTimeMillis();
-            }
-
-            String searchQuery = playerSearches.get(player.getUniqueId());
-            List<PlayerDataManager.LeaderboardEntry> displayEntries;
-            if (searchQuery != null && !searchQuery.isEmpty()) {
-                displayEntries = allEntries.stream()
-                        .filter(e -> e.name.toLowerCase().contains(searchQuery.toLowerCase()))
-                        .collect(Collectors.toList());
-            } else {
-                displayEntries = allEntries;
-            }
-
-            int itemsPerPage = 45;
-            int totalPlayers = displayEntries.size();
-            int totalPages = (int) Math.ceil((double) totalPlayers / itemsPerPage);
-
-            if (totalPages == 0)
-                totalPages = 1;
-            int finalPage = Math.max(1, Math.min(page, totalPages));
-
-            int startIndex = (finalPage - 1) * itemsPerPage;
-            int endIndex = Math.min(startIndex + itemsPerPage, totalPlayers);
-
-            List<ItemStack> items = new ArrayList<>();
-            for (int i = startIndex; i < endIndex; i++) {
-                PlayerDataManager.LeaderboardEntry entry = displayEntries.get(i);
-                items.add(createHeadItem(entry, allEntries.indexOf(entry) + 1));
-            }
-
-            PlayerDataManager.LeaderboardEntry selfEntry = allEntries.stream()
-                    .filter(e -> e.uuid.equals(player.getUniqueId()))
-                    .findFirst()
-                    .orElse(null);
-            int selfRank = selfEntry != null ? allEntries.indexOf(selfEntry) + 1 : -1;
-
-            int finalTotalPages = totalPages;
-            plugin.getSchedulerAdapter().runTask(() -> {
-                if (!player.isOnline())
+            try {
+                if (!player.isOnline()) {
                     return;
+                }
 
-                playerPages.put(player.getUniqueId(), finalPage);
+                List<PlayerDataManager.LeaderboardEntry> allEntries;
+                long now = System.currentTimeMillis();
 
+                if (forceRefresh || cachedEntries == null || (now - lastCacheTime >= CACHE_DURATION)) {
+                    allEntries = plugin.getPlayerDataManager().getTopMoney(10000);
+                    cachedEntries = allEntries;
+                    lastCacheTime = now;
+                } else {
+                    allEntries = cachedEntries;
+                }
+
+                if (allEntries == null) {
+                    allEntries = new ArrayList<>();
+                }
+
+                String searchQuery = playerSearches.get(playerUuid);
+                List<RankedEntry> rankedEntries = new ArrayList<>();
+                PlayerDataManager.LeaderboardEntry selfEntry = null;
+                int selfRank = -1;
+
+                // Single O(N) pass to filter search, assign original ranks, and find player's self rank
+                for (int i = 0; i < allEntries.size(); i++) {
+                    PlayerDataManager.LeaderboardEntry entry = allEntries.get(i);
+                    int currentRank = i + 1;
+
+                    if (entry.uuid != null && entry.uuid.equals(playerUuid)) {
+                        selfEntry = entry;
+                        selfRank = currentRank;
+                    }
+
+                    if (searchQuery != null && !searchQuery.isEmpty()) {
+                        if (entry.name != null && entry.name.toLowerCase().contains(searchQuery.toLowerCase())) {
+                            rankedEntries.add(new RankedEntry(entry, currentRank));
+                        }
+                    } else {
+                        rankedEntries.add(new RankedEntry(entry, currentRank));
+                    }
+                }
+
+                int itemsPerPage = 45;
+                int totalPlayers = rankedEntries.size();
+                int totalPages = (int) Math.ceil((double) totalPlayers / itemsPerPage);
+                if (totalPages == 0) totalPages = 1;
+
+                int finalPage = Math.max(1, Math.min(page, totalPages));
+                int startIndex = (finalPage - 1) * itemsPerPage;
+                int endIndex = Math.min(startIndex + itemsPerPage, totalPlayers);
+
+                // Build head items completely asynchronously
+                List<ItemStack> items = new ArrayList<>();
+                for (int i = startIndex; i < endIndex; i++) {
+                    RankedEntry re = rankedEntries.get(i);
+                    items.add(createHeadItem(re.entry, re.rank));
+                }
+
+                // Build self head completely asynchronously
+                double balance;
+                String rankDisplay;
+                if (selfEntry != null) {
+                    balance = selfEntry.value;
+                    rankDisplay = "&a (#" + selfRank + ")";
+                } else {
+                    try {
+                        balance = plugin.getPlayerDataManager().get(playerUuid).getMoney();
+                    } catch (Exception e) {
+                        balance = 0.0;
+                    }
+                    rankDisplay = "&7 (Not in top " + allEntries.size() + ")";
+                }
+
+                ItemStack selfHead = createSelfHeadItem(player, balance, rankDisplay);
+
+                // Pre-build GUI completely asynchronously
                 String title = ChatColor.translateAlternateColorCodes('&', "&8ᴍᴏѕᴛ ᴍᴏɴᴇʏ (page " + finalPage + ")");
                 Inventory gui = Bukkit.createInventory(null, 54, title);
 
@@ -137,79 +221,93 @@ public class BaltopCommand implements CommandExecutor, Listener {
                 if (finalPage > 1) {
                     gui.setItem(45, createKeyItem(Material.ARROW, "&aPrevious Page", "&7Click to switch page"));
                 }
-                if (finalPage < finalTotalPages) {
+                if (finalPage < totalPages) {
                     gui.setItem(53, createKeyItem(Material.ARROW, "&aNext Page", "&7Click to switch page"));
                 }
 
-                ItemStack selfHead = new ItemStack(Material.PLAYER_HEAD);
-                SkullMeta selfMeta = (SkullMeta) selfHead.getItemMeta();
-                if (selfMeta != null) {
-                    selfMeta.setOwningPlayer(player);
-                    selfMeta.setDisplayName(ChatColor.translateAlternateColorCodes('&', "&a" + player.getName()));
-                    List<String> selfLore = new ArrayList<>();
-
-                    double balance;
-                    String rankDisplay;
-
-                    if (selfEntry != null) {
-                        balance = selfEntry.value;
-                        rankDisplay = "&a (#" + selfRank + ")";
-                    } else {
-                        balance = 0.0;
-                        if (plugin.getServer().getPluginManager().isPluginEnabled("Vault")) {
-                            org.bukkit.plugin.RegisteredServiceProvider<net.milkbowl.vault.economy.Economy> rsp = plugin
-                                    .getServer()
-                                    .getServicesManager().getRegistration(net.milkbowl.vault.economy.Economy.class);
-                            if (rsp != null && rsp.getProvider() != null) {
-                                balance = rsp.getProvider().getBalance(player);
-                            }
-                        } else {
-                            balance = plugin.getPlayerDataManager().get(player.getUniqueId()).getMoney();
-                        }
-                        balance = plugin.getPlayerDataManager().get(player.getUniqueId()).getMoney();
-                        rankDisplay = "&7 (Not in top " + allEntries.size() + ")";
-                    }
-
-                    selfLore.add(ChatColor.translateAlternateColorCodes('&',
-                            "&fMoney:&7 $" + formatNumber(balance) + rankDisplay));
-
-                    selfMeta.setLore(selfLore);
-                    selfHead.setItemMeta(selfMeta);
-                }
                 gui.setItem(48, selfHead);
-
                 gui.setItem(49, createKeyItem(Material.EMERALD, "&aᴍᴏѕᴛ ᴍᴏɴᴇʏ", "&fClick to refresh"));
-
                 gui.setItem(50, createKeyItem(Material.OAK_SIGN, "&aѕᴇᴀʀᴄʜ", "&fClick to search for players"));
 
-                player.openInventory(gui);
-            });
+                // Dispatch to player's Folia Entity Thread safely
+                plugin.getSchedulerAdapter().runEntityTask(player, () -> {
+                    if (!player.isOnline()) return;
+
+                    playerPages.put(playerUuid, finalPage);
+
+                    // Check if player already has a Baltop GUI open
+                    String currentTitle = player.getOpenInventory().getTitle();
+                    if (currentTitle != null && currentTitle.startsWith(ChatColor.translateAlternateColorCodes('&', "&8ᴍᴏѕᴛ ᴍᴏɴᴇʏ"))) {
+                        // If same page, update contents directly without flicker
+                        if (currentTitle.equals(title)) {
+                            player.getOpenInventory().getTopInventory().setContents(gui.getContents());
+                            return;
+                        }
+                    }
+
+                    player.openInventory(gui);
+                });
+            } catch (Exception e) {
+                plugin.getLogger().warning("Error in Baltop async loader: " + e.getMessage());
+            } finally {
+                pendingLoads.remove(playerUuid);
+            }
         });
     }
 
     private ItemStack createHeadItem(PlayerDataManager.LeaderboardEntry entry, int rank) {
-        ItemStack head = new ItemStack(Material.PLAYER_HEAD);
-        SkullMeta meta = (SkullMeta) head.getItemMeta();
-
-        if (meta != null) {
-            try {
-                OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(entry.uuid);
-                meta.setOwningPlayer(offlinePlayer);
-
-                meta.setDisplayName(ChatColor.translateAlternateColorCodes('&', "&a" + entry.name));
-
-                List<String> lore = new ArrayList<>();
-                lore.add(ChatColor.translateAlternateColorCodes('&',
-                        "&fMoney:&7 $" + formatNumber(entry.value) + "&a (#" + rank + ")"));
-                meta.setLore(lore);
-                head.setItemMeta(meta);
-            } catch (Exception e) {
-                plugin.getLogger().warning(
-                        "Failed to create head item for " + entry.name + " (" + entry.uuid + "): " + e.getMessage());
+        ItemStack head = null;
+        if (entry.uuid != null) {
+            ItemStack base = baseHeadCache.get(entry.uuid);
+            if (base != null) {
+                head = base.clone();
             }
         }
 
+        if (head == null) {
+            head = new ItemStack(Material.PLAYER_HEAD);
+            SkullMeta meta = (SkullMeta) head.getItemMeta();
+            if (meta != null) {
+                try {
+                    OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(entry.uuid);
+                    meta.setOwningPlayer(offlinePlayer);
+                    head.setItemMeta(meta);
+                    if (entry.uuid != null) {
+                        baseHeadCache.put(entry.uuid, head.clone());
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+        }
+
+        ItemMeta meta = head.getItemMeta();
+        if (meta != null) {
+            meta.setDisplayName(ChatColor.translateAlternateColorCodes('&', "&a" + (entry.name != null ? entry.name : "Unknown")));
+            List<String> lore = new ArrayList<>();
+            lore.add(ChatColor.translateAlternateColorCodes('&',
+                    "&fMoney:&7 $" + formatNumber(entry.value) + "&a (#" + rank + ")"));
+            meta.setLore(lore);
+            head.setItemMeta(meta);
+        }
+
         return head;
+    }
+
+    private ItemStack createSelfHeadItem(Player player, double balance, String rankDisplay) {
+        ItemStack selfHead = new ItemStack(Material.PLAYER_HEAD);
+        SkullMeta selfMeta = (SkullMeta) selfHead.getItemMeta();
+        if (selfMeta != null) {
+            try {
+                selfMeta.setOwningPlayer(player);
+            } catch (Exception ignored) {}
+            selfMeta.setDisplayName(ChatColor.translateAlternateColorCodes('&', "&a" + player.getName()));
+            List<String> selfLore = new ArrayList<>();
+            selfLore.add(ChatColor.translateAlternateColorCodes('&',
+                    "&fMoney:&7 $" + formatNumber(balance) + rankDisplay));
+            selfMeta.setLore(selfLore);
+            selfHead.setItemMeta(selfMeta);
+        }
+        return selfHead;
     }
 
     @EventHandler
@@ -238,7 +336,7 @@ public class BaltopCommand implements CommandExecutor, Listener {
 
         if (event.getSlot() < 45) {
             if (item.getType() == Material.PLAYER_HEAD) {
-                playSound(player, Sound.BLOCK_TRIPWIRE_CLICK_ON);
+                playSound(player, getSound("click", Sound.BLOCK_TRIPWIRE_CLICK_ON));
             }
             return;
         }
@@ -246,27 +344,44 @@ public class BaltopCommand implements CommandExecutor, Listener {
         int currentPage = playerPages.getOrDefault(player.getUniqueId(), 1);
 
         if (event.getSlot() == 45 && item.getType() == Material.ARROW) {
-            loadDataAsync(player, currentPage - 1);
-            playSound(player, Sound.UI_BUTTON_CLICK);
+            loadDataAsync(player, currentPage - 1, false);
+            playSound(player, getSound("button-click", Sound.UI_BUTTON_CLICK));
         } else if (event.getSlot() == 53 && item.getType() == Material.ARROW) {
-            loadDataAsync(player, currentPage + 1);
-            playSound(player, Sound.UI_BUTTON_CLICK);
+            loadDataAsync(player, currentPage + 1, false);
+            playSound(player, getSound("button-click", Sound.UI_BUTTON_CLICK));
         } else if (event.getSlot() == 49 && item.getType() == Material.EMERALD) {
+            long now = System.currentTimeMillis();
+            long last = refreshCooldowns.getOrDefault(player.getUniqueId(), 0L);
+            if (now - last < 2000) {
+                // Cooldown debounce: 2 seconds to avoid spamming database / task queue
+                return;
+            }
+            refreshCooldowns.put(player.getUniqueId(), now);
             playerSearches.remove(player.getUniqueId());
-            cachedEntries = null;
-            loadDataAsync(player, 1);
-            playSound(player, Sound.UI_BUTTON_CLICK);
+            loadDataAsync(player, 1, true);
+            playSound(player, getSound("button-click", Sound.UI_BUTTON_CLICK));
         } else if (event.getSlot() == 50 && item.getType() == Material.OAK_SIGN) {
             player.closeInventory();
             plugin.getSignInput().getSearchInput(player, (input) -> {
-                String term = input.trim();
+                String term = input != null ? input.trim() : "";
                 if (!term.isEmpty()) {
                     playerSearches.put(player.getUniqueId(), term);
+                } else {
+                    playerSearches.remove(player.getUniqueId());
                 }
-                loadDataAsync(player, 1);
+                loadDataAsync(player, 1, false);
             });
-            playSound(player, Sound.UI_BUTTON_CLICK);
+            playSound(player, getSound("button-click", Sound.UI_BUTTON_CLICK));
         }
+    }
+
+    @EventHandler
+    public void onQuit(PlayerQuitEvent event) {
+        UUID uuid = event.getPlayer().getUniqueId();
+        playerPages.remove(uuid);
+        playerSearches.remove(uuid);
+        refreshCooldowns.remove(uuid);
+        pendingLoads.remove(uuid);
     }
 
     private ItemStack createKeyItem(Material mat, String name, String lore) {

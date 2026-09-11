@@ -282,7 +282,7 @@ public class YamlFlatfileStorage {
             List<String> toRemove = new ArrayList<>();
             for (String key : cfg.getKeys(false)) {
                 ConfigurationSection sec = cfg.getConfigurationSection(key);
-                if (sec != null && playerName.equals(sec.getString("player_name"))) {
+                if (sec != null && playerName.equalsIgnoreCase(sec.getString("player_name"))) {
                     toRemove.add(key);
                 }
             }

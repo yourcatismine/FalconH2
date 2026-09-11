@@ -34,6 +34,7 @@ public class ShopCommand implements CommandExecutor, Listener {
     private final Falcon plugin;
     private final Map<String, FileConfiguration> categoryConfigs = new HashMap<>();
     private FileConfiguration mainConfig;
+    private FileConfiguration messagesConfig;
 
     private final Map<Integer, String> mainMenuSlots = new HashMap<>();
     private final Map<UUID, BuyingSession> buyingSessions = new HashMap<>();
@@ -59,6 +60,12 @@ public class ShopCommand implements CommandExecutor, Listener {
     private void loadConfigs() {
         categoryConfigs.clear();
         mainMenuSlots.clear();
+
+        File messagesFile = new File(plugin.getDataFolder(), "messages/economy/shop.yml");
+        if (!messagesFile.exists()) {
+            plugin.saveResource("messages/economy/shop.yml", false);
+        }
+        messagesConfig = YamlConfiguration.loadConfiguration(messagesFile);
 
         File configFile = new File(plugin.getDataFolder(), "economy/shop/config.yml");
         if (!configFile.exists()) {
@@ -197,14 +204,8 @@ public class ShopCommand implements CommandExecutor, Listener {
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label,
             @NotNull String[] args) {
-        if (args.length > 0 && args[0].equalsIgnoreCase("reload") && sender.hasPermission("falcon.shop")) {
-            loadConfigs();
-            sender.sendMessage(ChatColor.GREEN + "Shop configuration reloaded.");
-            return true;
-        }
-
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(ChatColor.RED + "Only players can use the shop.");
+            sender.sendMessage(color(getMessage("only-players", "&cOnly players can use the shop.")));
             return true;
         }
 
@@ -234,7 +235,7 @@ public class ShopCommand implements CommandExecutor, Listener {
 
         FileConfiguration config = categoryConfigs.get(fileName);
         if (config == null) {
-            player.sendMessage(ChatColor.RED + "Category file not found: " + fileName);
+            player.sendMessage(color(getMessage("category-not-found", "&cCategory file not found: {file}").replace("{file}", fileName)));
             return;
         }
 
@@ -426,7 +427,7 @@ public class ShopCommand implements CommandExecutor, Listener {
             return;
 
         if (event.getCurrentItem().getType() != Material.BLACK_STAINED_GLASS_PANE) {
-            playSound(player, Sound.BLOCK_TRIPWIRE_CLICK_ON);
+            playSound(player, getSound("menu-click", Sound.BLOCK_TRIPWIRE_CLICK_ON));
         }
 
         int slot = event.getSlot();
@@ -562,7 +563,8 @@ public class ShopCommand implements CommandExecutor, Listener {
 
         com.falconcore.survival.manager.PlayerData pd = plugin.getPlayerDataManager().get(player.getUniqueId());
         if (pd == null) {
-            player.sendMessage(ChatColor.RED + "Error loading your data!");
+            player.sendMessage(color(getMessage("error-loading-data", "&cError loading your data!")));
+            playSound(player, getSound("purchase-error", Sound.ENTITY_VILLAGER_NO));
             return;
         }
 
@@ -571,14 +573,14 @@ public class ShopCommand implements CommandExecutor, Listener {
 
         if (session.currency.equals("MONEY")) {
             if (!com.falconcore.survival.auction.EconomyHandler.chargePlayer(player, totalCost, "Shop: " + itemName)) {
-                player.sendMessage(ChatColor.RED + "You do not have enough money!");
-                playSound(player, Sound.ENTITY_VILLAGER_NO);
+                player.sendMessage(color(getMessage("not-enough-money", "&cYou do not have enough money!")));
+                playSound(player, getSound("purchase-error", Sound.ENTITY_VILLAGER_NO));
                 return;
             }
         } else {
             if (pd.getShards() < totalCost) {
-                player.sendMessage(ChatColor.RED + "You do not have enough shards!");
-                playSound(player, Sound.ENTITY_VILLAGER_NO);
+                player.sendMessage(color(getMessage("not-enough-shards", "&cYou do not have enough shards!")));
+                playSound(player, getSound("purchase-error", Sound.ENTITY_VILLAGER_NO));
                 return;
             }
             pd.removeShards(totalCost, "Shop: " + itemName);
@@ -635,17 +637,17 @@ public class ShopCommand implements CommandExecutor, Listener {
             player.getInventory().addItem(toGive);
         }
 
-        playSound(player, Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f, 2.0f);
+        playSound(player, getSound("purchase-success", Sound.ENTITY_EXPERIENCE_ORB_PICKUP), 1.0f, 2.0f);
 
         pd.addShopSpent(totalCost);
         plugin.getPlayerDataManager().savePlayerAsync(player.getUniqueId());
     }
 
     private void sendInventoryFull(Player player) {
-        String msg = color("&cYour inventory is full!");
+        String msg = color(getMessage("inventory-full", "&cYour inventory is full!"));
         player.sendMessage(msg);
         player.spigot().sendMessage(ChatMessageType.ACTION_BAR, TextComponent.fromLegacyText(msg));
-        playSound(player, Sound.ENTITY_VILLAGER_NO);
+        playSound(player, getSound("purchase-error", Sound.ENTITY_VILLAGER_NO));
     }
 
     private int getSpaceFor(Inventory inv, ItemStack item) {
@@ -702,6 +704,25 @@ public class ShopCommand implements CommandExecutor, Listener {
             meta.setLore(Collections.singletonList(color(loreLine)));
         item.setItemMeta(meta);
         return item;
+    }
+
+    private String getMessage(String path, String def) {
+        if (messagesConfig == null)
+            return def;
+        return messagesConfig.getString("messages." + path, def);
+    }
+
+    private Sound getSound(String key, Sound def) {
+        if (messagesConfig == null)
+            return def;
+        String soundName = messagesConfig.getString("sounds." + key);
+        if (soundName == null || soundName.isEmpty())
+            return def;
+        try {
+            return Sound.valueOf(soundName.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return def;
+        }
     }
 
     private String color(String s) {
@@ -770,8 +791,8 @@ public class ShopCommand implements CommandExecutor, Listener {
     private void processShardPurchase(Player player, ShardPurchaseSession session) {
         com.falconcore.survival.manager.PlayerData pd = plugin.getPlayerDataManager().get(player.getUniqueId());
         if (pd == null) {
-            player.sendMessage(ChatColor.RED + "Error loading your data!");
-            playSound(player, Sound.ENTITY_VILLAGER_NO);
+            player.sendMessage(color(getMessage("error-loading-data", "&cError loading your data!")));
+            playSound(player, getSound("purchase-error", Sound.ENTITY_VILLAGER_NO));
             return;
         }
 
@@ -786,11 +807,11 @@ public class ShopCommand implements CommandExecutor, Listener {
         if (session.currency.equals("MONEY")) {
             if (!com.falconcore.survival.auction.EconomyHandler.chargePlayer(player, session.price,
                     "Shop: " + itemName)) {
-                String errorMsg = ChatColor.RED + "You don't have enough money!";
+                String errorMsg = color(getMessage("not-enough-money", "&cYou do not have enough money!"));
                 player.sendMessage(errorMsg);
                 player.spigot().sendMessage(net.md_5.bungee.api.ChatMessageType.ACTION_BAR,
                         new net.md_5.bungee.api.chat.TextComponent(errorMsg));
-                playSound(player, Sound.ENTITY_VILLAGER_NO);
+                playSound(player, getSound("purchase-error", Sound.ENTITY_VILLAGER_NO));
                 plugin.getSchedulerAdapter().runTaskLater(() -> {
                     ShardPurchaseSession stored = shardPurchaseSessions.get(player.getUniqueId());
                     if (stored != null) {
@@ -802,11 +823,11 @@ public class ShopCommand implements CommandExecutor, Listener {
         } else {
             double currentShards = pd.getShards();
             if (currentShards < session.price) {
-                String errorMsg = ChatColor.RED + "You don't have enough shards!";
+                String errorMsg = color(getMessage("not-enough-shards", "&cYou do not have enough shards!"));
                 player.sendMessage(errorMsg);
                 player.spigot().sendMessage(net.md_5.bungee.api.ChatMessageType.ACTION_BAR,
                         new net.md_5.bungee.api.chat.TextComponent(errorMsg));
-                playSound(player, Sound.ENTITY_VILLAGER_NO);
+                playSound(player, getSound("purchase-error", Sound.ENTITY_VILLAGER_NO));
                 plugin.getSchedulerAdapter().runTaskLater(() -> {
                     if (shardPurchaseSessions.containsKey(player.getUniqueId())) {
                         openShardConfirmation(player, session);
@@ -835,19 +856,19 @@ public class ShopCommand implements CommandExecutor, Listener {
                 String cmd = "spawner give " + player.getName() + " " + session.spawnerType + " 1";
                 plugin.getSchedulerAdapter().runTask(() -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd));
             } else {
-                player.sendMessage(ChatColor.RED + "Error: Item type not recognized!");
+                player.sendMessage(color(getMessage("item-not-recognized", "&cError: Item type not recognized!")));
                 if (session.currency.equals("MONEY")) {
                     com.falconcore.survival.auction.EconomyHandler.depositPlayer(player, session.price, "Shop Refund");
                 } else {
                     pd.setShards(pd.getShards() + session.price, "Shop Refund");
                     plugin.getPlayerDataManager().savePlayerAsync(player.getUniqueId());
                 }
-                playSound(player, Sound.ENTITY_VILLAGER_NO);
+                playSound(player, getSound("purchase-error", Sound.ENTITY_VILLAGER_NO));
                 return;
             }
         }
 
-        playSound(player, Sound.ENTITY_EXPERIENCE_ORB_PICKUP);
+        playSound(player, getSound("purchase-success", Sound.ENTITY_EXPERIENCE_ORB_PICKUP));
         openCategory(player, session.categoryFile);
         shardPurchaseSessions.remove(player.getUniqueId());
     }

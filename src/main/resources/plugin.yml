@@ -6,7 +6,7 @@ author: Kiarerss
 folia-supported: true
 description: Falcon was tamed by h2ph
 depend: [packetevents, PlaceholderAPI]
-softdepend: [Vault, WorldEdit, FastAsyncWorldEdit, LuckPerms, voicechat]
+softdepend: [Vault, WorldEdit, FastAsyncWorldEdit, LuckPerms, voicechat, Geyser-Spigot, floodgate]
 
 commands:
   shop:
@@ -145,6 +145,12 @@ commands:
     description: Manage amethyst tools
     permission: falcon.amethysts
     usage: /amethyst <type> <player> [duration]
+
+  enchant:
+    description: Manage and apply custom/unsafe enchantments to held items
+    permission: falcon.enchant
+    usage: /enchant [player] <enchantment> [level|remove]
+    aliases: [ench]
 
   sus:
     description: Monitor suspicious activity
@@ -548,6 +554,10 @@ permissions:
 
   falcon.amethysts:
     description: Permission to manage amethysts via /amethyst
+    default: op
+
+  falcon.enchant:
+    description: Permission to use /enchant
     default: op
 
   falcon.setafk:

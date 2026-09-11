@@ -1,0 +1,39 @@
+# ============================================================
+# Available Placeholders:
+#   {player}    - Player name
+#   {team}      - Team name
+# ============================================================
+
+messages:
+  only-players: "&cOnly players can use this command."
+  already-in-team: "&cYou are already in a team!"
+  not-in-team: "&cYou are not in a team!"
+  no-team-error: "&cYou dont have a team."
+  name-taken: "&cYou cannot create a team with this name, it is already taken."
+  team-created: "&7Team Created."
+  only-owner-invite: "&cOnly the team owner can invite players!"
+  cannot-invite-self: "&cYou cannot invite yourself!"
+  player-not-online: "&cThat player is not online."
+  player-not-found: "&cThat player does not exist."
+  player-already-in-team: "&cThat player is already in a team."
+  invite-sent: "&7You invited &d{player}&7 to your team."
+  no-invitations: "&cYou dont have any invitations."
+  no-invitation-from-player: "&cYou dont have any invitation to this player."
+  team-not-found: "&cThat team no longer exists."
+  joined-team: "&7You joined {team} team."
+  player-joined-broadcast: "&a{player} joined your team!"
+  left-team: "&7You left {team}&7 team."
+  left-deleted-team: "&7You left a deleted team."
+  only-owner-disband: "&cOnly the owner can disband the team!"
+  cannot-kick-self: "&cYou cannot kick yourself!"
+  player-not-in-team: "&cThat player is not on a team."
+  kicked-player: "&7You kicked &d{player}&7 to your team."
+  chat-on: "&7You turned on team chat."
+  chat-off: "&7You turned off team chat."
+
+sounds:
+  error: "ENTITY_VILLAGER_NO"
+  invite-sent: "BLOCK_NOTE_BLOCK_IRON_XYLOPHONE"
+  team-join: "UI_CARTOGRAPHY_TABLE_TAKE_RESULT"
+  chat-on: "BLOCK_BEACON_ACTIVATE"
+  chat-off: "BLOCK_BEACON_DEACTIVATE"

@@ -1,0 +1,9 @@
+# ============================================================
+# Available Placeholders:
+#   None
+# ============================================================
+
+messages:
+  no-permission: "&cYou do not have permission to use this command."
+  spectator-enabled: "&7You set your gamemode to &aSpectator&7 mode."
+  spectator-disabled: "&7You set your gamemode to &aSURVIVAL&7 mode."

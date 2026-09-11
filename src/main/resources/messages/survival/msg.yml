@@ -1,0 +1,25 @@
+# ============================================================
+# Available Placeholders:
+#   {player}    - Target player name
+#   {message}   - Private message content
+#   {duration}  - Mute duration
+#   {reason}    - Mute reason
+# ============================================================
+
+messages:
+  only-players: "&cOnly players can use this command."
+  usage-msg: "&cUsage: /msg <player> <message>"
+  usage-reply: "&cUsage: /reply <message> or /reply <player> <message>"
+  muted: "&7You have been muted for &f{duration}&7 Reason:&c {reason}"
+  player-not-online: "&cThis user is not online."
+  player-not-found: "&cThat user does not exist."
+  cannot-msg-self: "&cYou cannot message yourself."
+  messages-disabled: "&cUser disabled private messages."
+  player-ignored: "&7You are ignored by this player."
+  no-reply-target: "&cYou have nobody to reply to."
+  no-previous-conversation: "&7You dont have a previous private messages to this player."
+  format-sender: "&dyou -> {player}:&f {message}"
+  format-receiver: "&d{player} -> you:&f {message}"
+
+sounds:
+  error: "ENTITY_VILLAGER_NO"

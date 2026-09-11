@@ -1,0 +1,13 @@
+# ============================================================
+# Available Placeholders:
+#   None
+# ============================================================
+
+messages:
+  only-players: "&cPlayers only."
+  tag-normal: "&7Your gamertag is normal."
+  tag-hidden: "&7Your gamertag is hidden."
+
+sounds:
+  activated: "BLOCK_BEACON_ACTIVATE"
+  deactivated: "BLOCK_BEACON_DEACTIVATE"

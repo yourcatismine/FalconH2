@@ -1,0 +1,25 @@
+# ============================================================
+# Available Placeholders:
+#   {name}      - Home name
+#   {seconds}   - Teleport countdown seconds
+# ============================================================
+
+messages:
+  only-players: "&8[Home]&7 Only players can use this command."
+  locked-home: "&fBuy &dꜰᴀʟᴄᴏɴ+&f in /store for more homes"
+  teleport-warmup: "&fTeleporting in &b{seconds}"
+  teleport-success: "&fYou were teleported to your home."
+  type-new-name: "&7Please type the new home name on the chat."
+  home-set: "&7Home set"
+  home-renamed: "&7Home renamed to: &d{name}"
+  invalid-name: "&cInvalid name. Renaming cancelled."
+  must-be-in-team: "&cYou must be in a team to use this."
+  no-team-home: "&cYour team does not have a home."
+  team-home-set: "&7Team home set"
+  team-home-teleported: "&fYou were teleported to your team home."
+  only-owner-delete-team-home: "&cOnly the team owner can delete the team home."
+
+sounds:
+  click: "BLOCK_TRIPWIRE_CLICK_ON"
+  locked: "BLOCK_NOTE_BLOCK_HAT"
+  error: "ENTITY_VILLAGER_NO"

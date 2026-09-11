@@ -1,0 +1,40 @@
+# ============================================================
+# Available Placeholders:
+#   {player}    - Target/Sender player name
+#   {seconds}   - Countdown seconds
+# ============================================================
+
+messages:
+  only-players: "&cOnly players can use this command."
+  cooldown: "&cPlease wait before requesting again."
+  target-cooldown: "&cYou must wait before sending another request to this player."
+  player-not-online: "&cThis user is not online."
+  player-not-found: "&cThat player does not exist."
+  in-combat-target: "&cThis player is currently on combat."
+  in-combat-self: "&cYou are currently on combat."
+  requests-disabled: "&cUser disabled tpa requests."
+  player-ignored: "&7You are ignored by this player."
+  no-request-found: "&cThis teleport request does not exist."
+  player-left: "&cThat player is no longer online."
+  request-sent: "&7You sent &b{player}&7 a teleport request."
+  request-received: "&b{player}&7 sent you a teleport request."
+  request-here-sent: "&7You sent &b{player}&7 a teleport here request."
+  request-here-received: "&b{player}&7 sent you a teleport here request."
+  request-accepted-sender: "&b{player} &7accepted your teleport request."
+  request-accepted-target: "&7You accepted &b{player}&7's teleport request."
+  request-here-accepted-sender: "&b{player} &7accepted your teleport here request."
+  request-here-accepted-target: "&7You accepted &b{player}&7's teleport here request."
+  request-denied-sender: "&7You denied &#A9833D{player}&7 teleport request."
+  request-here-denied-sender: "&7You denied &#A9833D{player}&7 teleport here request."
+  request-cancelled: "&7You cancelled your teleport request."
+  request-here-cancelled: "&7You cancelled your teleport here request."
+  teleport-countdown: "&7Teleporting in &b{seconds}s"
+  teleport-cancelled-movement: "&cTeleportation cancelled because you moved."
+  teleport-success: "&7You were teleported to &b{player}"
+
+sounds:
+  error: "ENTITY_VILLAGER_NO"
+  request-sent: "BLOCK_NOTE_BLOCK_COW_BELL"
+  request-received: "ENTITY_PLAYER_LEVELUP"
+  countdown: "BLOCK_NOTE_BLOCK_HAT"
+  teleport: "ENTITY_ENDERMAN_TELEPORT"

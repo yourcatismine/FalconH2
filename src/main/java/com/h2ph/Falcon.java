@@ -95,6 +95,7 @@ public class Falcon extends JavaPlugin {
     private com.h2ph.managers.GamertagManager gamertagManager;
     private com.h2ph.managers.DamageManager damageManager;
     private com.h2ph.managers.InventoryWorthManager inventoryWorthManager;
+    private com.h2ph.commands.economy.BalanceCommand balanceCommand;
 
     private com.falconcore.survival.limiter.LimiterConfig limiterConfig;
     private com.falconcore.survival.limiter.LimiterManager limiterManager;
@@ -109,6 +110,10 @@ public class Falcon extends JavaPlugin {
     
     public com.falconcore.survival.manager.DiscordWebhookManager getDiscordWebhookManager() {
         return discordWebhookManager;
+    }
+
+    public com.h2ph.commands.economy.BalanceCommand getBalanceCommand() {
+        return balanceCommand;
     }
 
     private com.falconcore.survival.spawners.storage.SpawnerManager spawnerManager;
@@ -278,6 +283,10 @@ public class Falcon extends JavaPlugin {
         getCommand("amethyst").setExecutor(amethystCommand);
         getCommand("amethyst").setTabCompleter(amethystCommand);
 
+        com.h2ph.commands.admin.EnchantCommand enchantCommand = new com.h2ph.commands.admin.EnchantCommand(this);
+        getCommand("enchant").setExecutor(enchantCommand);
+        getCommand("enchant").setTabCompleter(enchantCommand);
+
         com.h2ph.commands.admin.economy.BillfordCommand billfordCommand = new com.h2ph.commands.admin.economy.BillfordCommand(
                 this);
         getCommand("billford").setExecutor(billfordCommand);
@@ -289,7 +298,7 @@ public class Falcon extends JavaPlugin {
         getCommand("baltop").setExecutor(baltopCommand);
         getServer().getPluginManager().registerEvents(baltopCommand, this);
 
-        com.h2ph.commands.economy.BalanceCommand balanceCommand = new com.h2ph.commands.economy.BalanceCommand(this);
+        this.balanceCommand = new com.h2ph.commands.economy.BalanceCommand(this);
         getCommand("balance").setExecutor(balanceCommand);
         getCommand("balance").setTabCompleter(balanceCommand);
 
@@ -1138,6 +1147,52 @@ public class Falcon extends JavaPlugin {
         saveResourceSafely("crates/keys/config.yml");
         saveResourceSafely("scoreboard/config.yml");
         saveResourceSafely("survival/checker/config.yml");
+        saveResourceSafely("messages/economy/balance.yml");
+        saveResourceSafely("messages/economy/auction.yml");
+        saveResourceSafely("messages/economy/order.yml");
+        saveResourceSafely("messages/economy/shop.yml");
+        saveResourceSafely("messages/economy/sell.yml");
+        saveResourceSafely("messages/economy/pay.yml");
+        saveResourceSafely("messages/economy/baltop.yml");
+        saveResourceSafely("messages/economy/billford.yml");
+        saveResourceSafely("messages/economy/bounty.yml");
+        saveResourceSafely("messages/economy/economy.yml");
+        saveResourceSafely("messages/economy/sellhistory.yml");
+        saveResourceSafely("messages/economy/shards.yml");
+        saveResourceSafely("messages/economy/spawner.yml");
+        saveResourceSafely("messages/economy/worth.yml");
+        saveResourceSafely("messages/homes/home.yml");
+        saveResourceSafely("messages/survival/tpa.yml");
+        saveResourceSafely("messages/survival/msg.yml");
+        saveResourceSafely("messages/survival/spawn.yml");
+        saveResourceSafely("messages/survival/warp.yml");
+        saveResourceSafely("messages/survival/rtp.yml");
+        saveResourceSafely("messages/survival/afk.yml");
+        saveResourceSafely("messages/survival/team.yml");
+        saveResourceSafely("messages/survival/ignore.yml");
+        saveResourceSafely("messages/survival/stats.yml");
+        saveResourceSafely("messages/survival/settings.yml");
+        saveResourceSafely("messages/survival/whereami.yml");
+        saveResourceSafely("messages/survival/nv.yml");
+        saveResourceSafely("messages/survival/fly.yml");
+        saveResourceSafely("messages/survival/rules.yml");
+        saveResourceSafely("messages/survival/media.yml");
+        saveResourceSafely("messages/survival/discord.yml");
+        saveResourceSafely("messages/survival/store.yml");
+        saveResourceSafely("messages/moderation/mute.yml");
+        saveResourceSafely("messages/moderation/vanish.yml");
+        saveResourceSafely("messages/moderation/spectator.yml");
+        saveResourceSafely("messages/moderation/invsee.yml");
+        saveResourceSafely("messages/moderation/checkalt.yml");
+        saveResourceSafely("messages/moderation/checkplayers.yml");
+        saveResourceSafely("messages/moderation/sus.yml");
+        saveResourceSafely("messages/moderation/setspawn.yml");
+        saveResourceSafely("messages/moderation/speed.yml");
+        saveResourceSafely("messages/moderation/announce.yml");
+        saveResourceSafely("messages/moderation/tp.yml");
+        saveResourceSafely("messages/moderation/checktotem.yml");
+        saveResourceSafely("messages/moderation/gamemode.yml");
+        saveResourceSafely("messages/moderation/hidename.yml");
 
         java.io.File queueFolder = new java.io.File(getDataFolder(), "rtp/queue");
         if (!queueFolder.exists()) {

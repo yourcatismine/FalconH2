@@ -1,0 +1,11 @@
+# ============================================================
+# Available Placeholders:
+#   {player}   - Player name
+# ============================================================
+
+messages:
+  only-players: "&cOnly players can use this command."
+
+sounds:
+  item-click: "BLOCK_TRIPWIRE_CLICK_ON"
+  page-turn: "ITEM_BOOK_PAGE_TURN"

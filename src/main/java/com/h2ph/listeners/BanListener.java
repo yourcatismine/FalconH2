@@ -22,14 +22,39 @@ public class BanListener implements Listener {
     @EventHandler(priority = org.bukkit.event.EventPriority.HIGHEST)
     public void onLogin(AsyncPlayerPreLoginEvent event) {
         UUID uuid = event.getUniqueId();
+        String name = event.getName();
 
-        if (plugin.getDatabaseManager().isBanned(uuid)) {
-            DatabaseManager.BanInfo info = plugin.getDatabaseManager().getBanInfo(uuid);
+        DatabaseManager.BanInfo info = plugin.getDatabaseManager().getBanInfo(uuid);
+        if (info == null && name != null) {
+            info = plugin.getDatabaseManager().getBanInfoByName(name);
+            // If they were banned by name prior to joining, link their real login UUID
+            if (info != null && (info.expire == -1 || info.expire > System.currentTimeMillis())) {
+                try {
+                    plugin.getDatabaseManager().addBan(
+                            uuid,
+                            name,
+                            info.id,
+                            info.reasonKey,
+                            info.reason,
+                            info.count,
+                            info.date,
+                            info.expire,
+                            info.bannedBy
+                    );
+                } catch (Throwable ignored) {
+                }
+            }
+        }
 
-            if (info != null) {
+        if (info != null) {
+            if (info.expire == -1 || info.expire > System.currentTimeMillis()) {
                 event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_BANNED, plugin.formatBanMessage(info));
             } else {
-                event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_BANNED, "You are banned.");
+                // Ban expired
+                plugin.getDatabaseManager().removeBan(uuid);
+                if (name != null) {
+                    plugin.getDatabaseManager().removeBan(name);
+                }
             }
         }
     }

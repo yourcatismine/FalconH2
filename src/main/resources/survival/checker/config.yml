@@ -8,6 +8,9 @@ debug: true
 auto-check-on-join:
   enabled: true
 
+# Automatically bypass / ignore Bedrock / Geyser / Floodgate players (prevents false kicks/bans)
+ignore-bedrock-players: true
+
 # Action to take when a cheat client is detected (ban, kick, command, message)
 action:
   type: BAN

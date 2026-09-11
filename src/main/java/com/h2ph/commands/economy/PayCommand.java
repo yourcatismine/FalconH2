@@ -16,6 +16,10 @@ import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.file.YamlConfiguration;
+
+import java.io.File;
 import java.text.DecimalFormat;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -30,16 +34,47 @@ public class PayCommand implements CommandExecutor, TabCompleter {
 
     private final Falcon plugin;
     private static final DecimalFormat DF = new DecimalFormat("#.#");
+    private FileConfiguration config;
+    private File configFile;
 
     public PayCommand(Falcon plugin) {
         this.plugin = plugin;
+        loadConfig();
+    }
+
+    public void loadConfig() {
+        configFile = new File(plugin.getDataFolder(), "messages/economy/pay.yml");
+        if (!configFile.exists()) {
+            plugin.saveResource("messages/economy/pay.yml", false);
+        }
+        config = YamlConfiguration.loadConfiguration(configFile);
+    }
+
+    private String getMessage(String path, String def) {
+        if (config == null)
+            return def;
+        return config.getString("messages." + path, def);
+    }
+
+    private Sound getSound(String key, Sound def) {
+        if (config == null)
+            return def;
+        String soundName = config.getString("sounds." + key);
+        if (soundName == null || soundName.isEmpty())
+            return def;
+        try {
+            return Sound.valueOf(soundName.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return def;
+        }
     }
 
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label,
             @NotNull String[] args) {
         if (!(sender instanceof Player)) {
-            sender.sendMessage(ChatColor.RED + "Only players can use this command.");
+            sender.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                    getMessage("only-players", "&cOnly players can use this command.")));
             return true;
         }
 
@@ -47,7 +82,7 @@ public class PayCommand implements CommandExecutor, TabCompleter {
 
         if (args.length < 2) {
             //sender.sendMessage(ChatColor.RED + "Usage: /pay <player> <amount>");
-            player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1, 1);
+            player.playSound(player.getLocation(), getSound("error", Sound.ENTITY_VILLAGER_NO), 1, 1);
             return true;
         }
 
@@ -59,13 +94,13 @@ public class PayCommand implements CommandExecutor, TabCompleter {
             amount = parseAmount(amountStr);
         } catch (NumberFormatException e) {
            // sender.sendMessage(ChatColor.RED + "Invalid amount format. Examples: 100, 1k, 1m");
-           player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1, 1);
+           player.playSound(player.getLocation(), getSound("error", Sound.ENTITY_VILLAGER_NO), 1, 1);
             return true;
         }
 
         if (amount <= 0 || !Double.isFinite(amount)) {
             //sender.sendMessage(ChatColor.RED + "Amount must be a positive number.");
-            player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1, 1);
+            player.playSound(player.getLocation(), getSound("error", Sound.ENTITY_VILLAGER_NO), 1, 1);
             return true;
         }
 
@@ -77,7 +112,7 @@ public class PayCommand implements CommandExecutor, TabCompleter {
                 OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(targetName);
                 if (!offlinePlayer.hasPlayedBefore() && !offlinePlayer.isOnline()) {
                     plugin.getSchedulerAdapter().runTask(() -> {
-                        sendError(player, "&cThat player does not exist.");
+                        sendError(player, getMessage("player-not-found", "&cThat player does not exist."));
                     });
                     return;
                 }
@@ -91,9 +126,9 @@ public class PayCommand implements CommandExecutor, TabCompleter {
     private void processPayment(Player sender, UUID targetId, String targetName, double amount) {
         if (sender.getUniqueId().equals(targetId)) {
             if (!Bukkit.isPrimaryThread()) {
-                plugin.getSchedulerAdapter().runTask(() -> sendError(sender, "&cYou cannot pay yourself."));
+                plugin.getSchedulerAdapter().runTask(() -> sendError(sender, getMessage("cannot-pay-self", "&cYou cannot pay yourself.")));
             } else {
-                sendError(sender, "&cYou cannot pay yourself.");
+                sendError(sender, getMessage("cannot-pay-self", "&cYou cannot pay yourself."));
             }
             return;
         }
@@ -109,7 +144,8 @@ public class PayCommand implements CommandExecutor, TabCompleter {
         }
 
         if (senderData.getMoney() < amount) {
-            String msg = ChatColor.translateAlternateColorCodes('&', "&cYou do not have enough money.");
+            String msg = ChatColor.translateAlternateColorCodes('&',
+                    getMessage("insufficient-funds", "&cYou do not have enough money."));
             sender.sendMessage(msg);
             sender.spigot().sendMessage(ChatMessageType.ACTION_BAR, TextComponent.fromLegacyText(msg));
             return;
@@ -125,26 +161,26 @@ public class PayCommand implements CommandExecutor, TabCompleter {
             }
 
             if (targetData == null) {
-                plugin.getSchedulerAdapter().runTask(() -> sendError(sender, "&cCould not load data for that player."));
+                plugin.getSchedulerAdapter().runTask(() -> sendError(sender, getMessage("cannot-load-data", "&cCould not load data for that player.")));
                 return;
             }
 
             final PlayerData finalTargetData = targetData;
 
             if (!finalTargetData.isPayments()) {
-                plugin.getSchedulerAdapter().runTask(() -> sendError(sender, "&cUser disabled payments."));
+                plugin.getSchedulerAdapter().runTask(() -> sendError(sender, getMessage("payments-disabled", "&cUser disabled payments.")));
                 return;
             }
 
             if (finalTargetData.isIgnoring(sender.getUniqueId())) {
-                plugin.getSchedulerAdapter().runTask(() -> sendError(sender, "&7You are ignored by this player."));
+                plugin.getSchedulerAdapter().runTask(() -> sendError(sender, getMessage("player-ignored", "&7You are ignored by this player.")));
                 return;
             }
 
             plugin.getSchedulerAdapter().runTask(() -> {
                 if (!com.falconcore.survival.auction.EconomyHandler.chargePlayer(sender, amount,
                         "Payment to " + targetName)) {
-                    sendError(sender, "&cTransaction failed.");
+                    sendError(sender, getMessage("transaction-failed", "&cTransaction failed."));
                     return;
                 }
 
@@ -160,7 +196,9 @@ public class PayCommand implements CommandExecutor, TabCompleter {
     private void sendSuccess(Player sender, UUID targetId, String targetName, double amount, PlayerData targetData) {
         String moneyFormatted = formatNumber(amount);
         String senderMsg = ChatColor.translateAlternateColorCodes('&',
-                "&7You paid &d" + targetName + "&a $" + moneyFormatted);
+                getMessage("pay-success-sender", "&7You paid &d{target}&a ${money}")
+                        .replace("{target}", targetName)
+                        .replace("{money}", moneyFormatted));
         sender.sendMessage(senderMsg);
         sender.spigot().sendMessage(ChatMessageType.ACTION_BAR, TextComponent.fromLegacyText(senderMsg));
 
@@ -171,12 +209,14 @@ public class PayCommand implements CommandExecutor, TabCompleter {
             }
 
             String targetMsg = ChatColor.translateAlternateColorCodes('&',
-                    "&d" + sender.getName() + "&7 paid you&a $" + moneyFormatted);
+                    getMessage("pay-success-target", "&d{sender}&7 paid you&a ${money}")
+                            .replace("{sender}", sender.getName())
+                            .replace("{money}", moneyFormatted));
             targetOnline.sendMessage(targetMsg);
             targetOnline.spigot().sendMessage(ChatMessageType.ACTION_BAR, TextComponent.fromLegacyText(targetMsg));
 
             if (targetData.isSoundNotifications()) {
-                targetOnline.playSound(targetOnline.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f);
+                targetOnline.playSound(targetOnline.getLocation(), getSound("pay-received", Sound.ENTITY_EXPERIENCE_ORB_PICKUP), 1f, 1f);
             }
         }
     }
@@ -185,7 +225,7 @@ public class PayCommand implements CommandExecutor, TabCompleter {
         String msg = ChatColor.translateAlternateColorCodes('&', message);
         player.sendMessage(msg);
         player.spigot().sendMessage(ChatMessageType.ACTION_BAR, TextComponent.fromLegacyText(msg));
-        player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
+        player.playSound(player.getLocation(), getSound("error", Sound.ENTITY_VILLAGER_NO), 1f, 1f);
     }
 
     private double parseAmount(String amountStr) throws NumberFormatException {

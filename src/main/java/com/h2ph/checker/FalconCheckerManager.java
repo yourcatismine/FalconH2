@@ -23,10 +23,6 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
-/**
- * Core manager for the Falcon client checking system.
- * Handles sign probe packet dispatch, responses, channel detection orchestration, and punishments.
- */
 public class FalconCheckerManager {
 
     private static FalconCheckerManager instance;
@@ -41,6 +37,7 @@ public class FalconCheckerManager {
     private final Map<String, HackDefinition> hackDefinitions = new LinkedHashMap<>();
     private final List<String> autoCheckHacks = new ArrayList<>();
     private final Map<UUID, ActiveCheckData> activeChecks = new ConcurrentHashMap<>();
+    private final Set<UUID> actionedPlayers = ConcurrentHashMap.newKeySet();
 
     public FalconCheckerManager(Falcon plugin) {
         instance = this;
@@ -73,7 +70,6 @@ public class FalconCheckerManager {
         return config;
     }
 
-    // ─── Configuration ───────────────────────────────────────────────────
 
     public void loadConfig() {
         this.configFile = new File(plugin.getDataFolder(), "survival/checker/config.yml");
@@ -95,10 +91,8 @@ public class FalconCheckerManager {
         hackDefinitions.clear();
         autoCheckHacks.clear();
 
-        // 1. Register all built-in hack definitions
         registerBuiltinHacks();
 
-        // 2. Load custom / overridden 'hacks' from config if present
         ConfigurationSection hacksSection = this.config.getConfigurationSection("hacks");
         if (hacksSection != null) {
             for (String hackId : hacksSection.getKeys(false)) {
@@ -121,16 +115,12 @@ public class FalconCheckerManager {
             }
         }
 
-        // 3. Load auto-check-on-join hack list
         List<String> joinHackList = this.config.getStringList("auto-check-on-join.hacks");
         if (joinHackList != null && !joinHackList.isEmpty()) {
             autoCheckHacks.addAll(joinHackList);
         } else {
             autoCheckHacks.addAll(List.of(
-                "meteor-client", "freecam", "freecamz", "chestesp",
-                "xaeros-minimap", "xaeros-world-map", "liquidbounce",
-                "bleachhack", "seedcrackerx", "baritone", "xray-fabric",
-                "autofish", "autoclicker-fabric", "aristois", "wurst"
+                "chestesp", "meteor-client", "freecam", "liquidbounce"
             ));
         }
     }
@@ -145,8 +135,10 @@ public class FalconCheckerManager {
         addBuiltin("liquidbounce", "LiquidBounce", "liquidbounce.module.killaura.name", DetectionMode.TRANSLATE);
         addBuiltin("bleachhack", "BleachHack", "bleachhack.module.killaura", DetectionMode.TRANSLATE);
         addBuiltin("xray-fabric", "XRay (Fabric)", "xray.config.toggle", DetectionMode.KEYBIND);
-        addBuiltin("chestesp", "ChestESP", "text.autoconfig.chestesp.title", DetectionMode.TRANSLATE);
-        addBuiltin("chestesp-category", "ChestESP", "key.category.chestesp.chestesp", DetectionMode.TRANSLATE);
+        addBuiltin("chestesp", "ChestESP", "key.chestesp.toggle", DetectionMode.KEYBIND);
+        addBuiltin("chestesp-config", "ChestESP", "text.autoconfig.chestesp.title", DetectionMode.TRANSLATE);
+        addBuiltin("chestesp-cat", "ChestESP", "key.category.chestesp", DetectionMode.TRANSLATE);
+        addBuiltin("chestesp-title", "ChestESP", "chestesp.title", DetectionMode.TRANSLATE);
         addBuiltin("killaura-fabric", "KillAura (Fabric)", "key.killaura", DetectionMode.KEYBIND);
         addBuiltin("autofish", "AutoFish", "key.autofish.open_gui", DetectionMode.KEYBIND);
         addBuiltin("lumina", "Lumina", "key.lumina.open_click_gui", DetectionMode.KEYBIND);
@@ -189,7 +181,6 @@ public class FalconCheckerManager {
         }
     }
 
-    // ─── Active Check Orchestration ──────────────────────────────────────
 
     public boolean isChecking(UUID uuid) {
         return activeChecks.containsKey(uuid);
@@ -199,12 +190,90 @@ public class FalconCheckerManager {
         return activeChecks.get(uuid);
     }
 
+    public static boolean isBedrockPlayer(Player player) {
+        if (player == null) return false;
+        return isBedrock(player.getUniqueId(), player.getName(), player);
+    }
+
+    public static boolean isBedrock(UUID uuid, String name, Player player) {
+        if (instance != null && instance.getConfig() != null && !instance.getConfig().getBoolean("ignore-bedrock-players", true)) {
+            return false;
+        }
+
+        // 1. Check Floodgate API via reflection
+        try {
+            Class<?> floodgateApiClass = Class.forName("org.geysermc.floodgate.api.FloodgateApi");
+            Object floodgateInstance = floodgateApiClass.getMethod("getInstance").invoke(null);
+            if (floodgateInstance != null && uuid != null) {
+                Object result = floodgateApiClass.getMethod("isFloodgatePlayer", UUID.class).invoke(floodgateInstance, uuid);
+                if (result instanceof Boolean && (Boolean) result) {
+                    return true;
+                }
+                Object resultId = floodgateApiClass.getMethod("isFloodgateId", UUID.class).invoke(floodgateInstance, uuid);
+                if (resultId instanceof Boolean && (Boolean) resultId) {
+                    return true;
+                }
+            }
+        } catch (Throwable ignored) {}
+
+        // 2. Check Geyser API via reflection
+        try {
+            Class<?> geyserApiClass = Class.forName("org.geysermc.geyser.api.GeyserApi");
+            Object api = geyserApiClass.getMethod("api").invoke(null);
+            if (api != null && uuid != null) {
+                Object result = geyserApiClass.getMethod("isBedrockPlayer", UUID.class).invoke(api, uuid);
+                if (result instanceof Boolean && (Boolean) result) {
+                    return true;
+                }
+            }
+        } catch (Throwable ignored) {}
+
+        // 3. Check Floodgate UUID pattern (upper 64 bits = 0)
+        if (uuid != null && uuid.getMostSignificantBits() == 0L) {
+            return true;
+        }
+
+        // 4. Check client brand
+        if (player != null) {
+            try {
+                String brand = player.getClientBrandName();
+                if (brand != null) {
+                    String lower = brand.toLowerCase();
+                    if (lower.contains("geyser") || lower.contains("floodgate") || lower.contains("bedrock") || lower.contains("mcpe") || lower.contains("pocketmine")) {
+                        return true;
+                    }
+                }
+            } catch (Throwable ignored) {}
+        }
+        if (instance != null && instance.getChannelDetector() != null && uuid != null) {
+            String recordedBrand = instance.getChannelDetector().getBrand(uuid).toLowerCase();
+            if (recordedBrand.contains("geyser") || recordedBrand.contains("floodgate") || recordedBrand.contains("bedrock") || recordedBrand.contains("mcpe") || recordedBrand.contains("pocketmine")) {
+                return true;
+            }
+        }
+
+        // 5. Check username prefix standard for Floodgate (. or *)
+        if (name != null && (name.startsWith(".") || name.startsWith("*"))) {
+            return true;
+        }
+
+        return false;
+    }
+
     public boolean startCheck(Player target, CommandSender initiator, String reason) {
         UUID targetUUID = target.getUniqueId();
 
         if (activeChecks.containsKey(targetUUID)) {
             if (initiator != null) {
                 initiator.sendMessage(Component.text("Check already running for " + target.getName(), NamedTextColor.YELLOW));
+            }
+            return false;
+        }
+
+        if (isBedrockPlayer(target)) {
+            debug("Player " + target.getName() + " is a Bedrock/Geyser player, skipping probe.");
+            if (initiator != null) {
+                initiator.sendMessage(Component.text(target.getName() + " is a Bedrock/Geyser player (Bedrock clients cannot run Java mods).", NamedTextColor.YELLOW));
             }
             return false;
         }
@@ -275,37 +344,39 @@ public class FalconCheckerManager {
         long token = System.currentTimeMillis();
         data.setTimeoutToken(token);
 
-        Location eyeLoc = target.getEyeLocation();
-        Location signLoc = eyeLoc.clone().add(eyeLoc.getDirection().multiply(1.2));
-        signLoc.setX(signLoc.getBlockX());
-        signLoc.setY(Math.max(signLoc.getWorld().getMinHeight() + 1, Math.min(signLoc.getWorld().getMaxHeight() - 2, signLoc.getBlockY())));
-        signLoc.setZ(signLoc.getBlockZ());
+        Location playerLoc = target.getLocation();
+        Location signLoc = playerLoc.clone();
+        signLoc.setX(playerLoc.getBlockX());
+        signLoc.setY(Math.max(playerLoc.getWorld().getMinHeight() + 1, playerLoc.getBlockY() - 2));
+        signLoc.setZ(playerLoc.getBlockZ());
 
         Block block = signLoc.getBlock();
         BlockState originalState = block.getState();
         data.setSignLocation(signLoc);
         data.setOriginalState(originalState);
 
-        Location footLoc = target.getLocation().getBlock().getLocation();
-        if (footLoc.getBlock().getType().isAir()) {
-            footLoc.getBlock().setType(Material.BARRIER, false);
-            data.setBarrierPlaced(true);
-            data.setBarrierLocation(footLoc);
-        }
-
         block.setType(Material.OAK_SIGN, false);
+        List<Component> signLines = new ArrayList<>();
         if (block.getState() instanceof org.bukkit.block.Sign sign) {
             org.bukkit.block.sign.SignSide front = sign.getSide(org.bukkit.block.sign.Side.FRONT);
             for (int i = 0; i < 4; i++) {
                 if (i < batch.size()) {
                     HackDefinition hack = batch.get(i);
-                    front.line(i, Component.translatable(hack.getKey()).fallback(hack.getFallback()));
+                    Component comp = Component.translatable(hack.getKey()).fallback(hack.getFallback());
+                    front.line(i, comp);
+                    signLines.add(comp);
                 } else {
                     front.line(i, Component.empty());
+                    signLines.add(Component.empty());
                 }
             }
             sign.update(true, false);
         }
+
+        try {
+            target.sendBlockChange(signLoc, block.getBlockData());
+            target.sendSignChange(signLoc, signLines);
+        } catch (Throwable ignored) {}
 
         FalconSignUtil.setAllowedEditor(signLoc, target.getUniqueId(), plugin);
         FalconSignUtil.sendBlockEntityPacket(target, signLoc, plugin);
@@ -313,21 +384,36 @@ public class FalconCheckerManager {
         List<String> keyNames = batch.stream().map(HackDefinition::getDisplayName).toList();
         debug("[" + target.getName() + "] Dispatched sign probe batch " + (data.getCurrentBatchIndex() + 1) + "/" + data.getBatches().size() + " (" + String.join(", ", keyNames) + ")");
 
-        FalconSignUtil.openSignEditor(target, signLoc);
+        plugin.getSchedulerAdapter().runEntityTaskLater(target, () -> {
+            if (!target.isOnline() || !activeChecks.containsKey(target.getUniqueId())) return;
+            ActiveCheckData current = activeChecks.get(target.getUniqueId());
+            if (current == null || current.getTimeoutToken() != token) return;
 
-        long timeoutTicks = config.getLong("timeout-ticks", 60L);
+            FalconSignUtil.openSignEditor(target, signLoc);
+
+            plugin.getSchedulerAdapter().runEntityTaskLater(target, () -> {
+                if (!target.isOnline() || !activeChecks.containsKey(target.getUniqueId())) return;
+                ActiveCheckData active = activeChecks.get(target.getUniqueId());
+                if (active != null && active.getTimeoutToken() == token) {
+                    FalconSignUtil.closeEditor(target);
+                }
+            }, 1L);
+        }, 1L);
+
+        long timeoutTicks = config.getLong("timeout-ticks", 160L);
         plugin.getSchedulerAdapter().runEntityTaskLater(target, () -> {
             if (activeChecks.containsKey(target.getUniqueId())) {
                 ActiveCheckData current = activeChecks.get(target.getUniqueId());
                 if (current != null && current.getTimeoutToken() == token) {
-                    debug("[" + target.getName() + "] Batch " + (current.getCurrentBatchIndex() + 1) + "/" + current.getBatches().size() + " probe finished (Clean / No cheat response).");
+                    debug("[" + target.getName() + "] Batch " + (current.getCurrentBatchIndex() + 1) + "/" + current.getBatches().size() + " timed out (Clean / No cheat response).");
+                    current.setTimeoutToken(0);
                     cleanupSign(current);
                     FalconSignUtil.closeEditor(target);
                     for (HackDefinition h : batch) {
                         current.recordResult(h.getId(), HackResult.NOT_DETECTED);
                     }
                     current.advanceBatch();
-                    long betweenTicks = config.getLong("between-sign-ticks", 1L);
+                    long betweenTicks = config.getLong("between-sign-ticks", 2L);
                     plugin.getSchedulerAdapter().runEntityTaskLater(target, () -> {
                         dispatchNextBatch(target, current);
                     }, Math.max(1L, betweenTicks));
@@ -337,8 +423,22 @@ public class FalconCheckerManager {
     }
 
     public void handleResponse(Player target, String[] lines) {
+        if (target == null || isBedrockPlayer(target)) {
+            if (target != null) {
+                finishCheck(target.getUniqueId());
+            }
+            return;
+        }
+
         ActiveCheckData data = activeChecks.get(target.getUniqueId());
         if (data == null) return;
+
+        if (data.getTimeoutToken() == 0) {
+            debug("[" + target.getName() + "] Ignored stale sign response (batch already timed out or processed).");
+            return;
+        }
+
+        data.setTimeoutToken(0);
 
         debug("[" + target.getName() + "] Received sign response lines: " + Arrays.toString(lines));
 
@@ -346,6 +446,7 @@ public class FalconCheckerManager {
         FalconSignUtil.closeEditor(target);
 
         List<HackDefinition> batch = data.getCurrentBatch();
+        String detectedMod = null;
         if (batch != null) {
             for (int i = 0; i < batch.size() && i < lines.length; i++) {
                 HackDefinition hack = batch.get(i);
@@ -355,48 +456,87 @@ public class FalconCheckerManager {
 
                 debug("[" + target.getName() + "] Line " + i + " (" + hack.getDisplayName() + "): got \"" + line + "\", fallback=\"" + hack.getFallback() + "\" -> " + result);
 
-                if (result == HackResult.DETECTED) {
-                    debug("DETECTED " + hack.getDisplayName() + " on " + target.getName() + " (line " + i + ": \"" + line + "\")");
-                    flagCheat(target, hack.getDisplayName(), "Sign Probe");
+                if (result == HackResult.DETECTED && detectedMod == null) {
+                    detectedMod = hack.getDisplayName();
                 }
             }
         }
 
+        if (detectedMod != null) {
+            debug("DETECTED " + detectedMod + " on " + target.getName());
+            flagCheat(target, detectedMod, "Sign Probe");
+            return;
+        }
+
         data.advanceBatch();
 
-        long betweenTicks = config.getLong("between-sign-ticks", 1L);
+        long betweenTicks = config.getLong("between-sign-ticks", 2L);
         plugin.getSchedulerAdapter().runEntityTaskLater(target, () -> {
             dispatchNextBatch(target, data);
         }, Math.max(1L, betweenTicks));
     }
 
-    private HackResult evaluateLine(HackDefinition hack, String line) {
-        if (line == null || line.isEmpty()) {
+    public static String extractCleanText(String raw) {
+        if (raw == null) return "";
+        String s = raw.trim();
+        if (s.isEmpty()) return "";
+
+        // Remove JSON formatting if present: {"text":"..."} or {"translate":"..."} or {"extra":[...]}
+        if (s.startsWith("{") && s.endsWith("}")) {
+            StringBuilder sb = new StringBuilder();
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile("\"(?:text|translate|fallback|content|value)\"\\s*:\\s*\"([^\"]*)\"").matcher(s);
+            while (m.find()) {
+                sb.append(m.group(1)).append(" ");
+            }
+            if (sb.length() > 0) {
+                s = sb.toString().trim();
+            } else {
+                s = s.replaceAll("[{}\"'\\[\\]]", "").replace("text:", "").replace("translate:", "").trim();
+            }
+        }
+
+        // Strip Minecraft color codes (§a, &a, etc.)
+        s = s.replaceAll("(?i)[§&][0-9a-fk-or]", "").trim();
+        return s;
+    }
+
+    private HackResult evaluateLine(HackDefinition hack, String rawLine) {
+        if (rawLine == null || rawLine.isBlank()) {
             return HackResult.NOT_DETECTED;
         }
 
-        String lower = line.toLowerCase();
+        String clean = extractCleanText(rawLine).toLowerCase().trim();
+        if (clean.isEmpty() || clean.equals("null") || clean.equals("{}") || clean.equals("[]")) {
+            return HackResult.NOT_DETECTED;
+        }
+
         String lowerKey = hack.getLowerKey();
         String lowerFallback = hack.getLowerFallback();
 
-        if (lower.equals(lowerFallback)) {
+        // If line is equal to fallback or key, it's clean
+        if (clean.equals(lowerFallback) || clean.equals(lowerKey)) {
             return HackResult.NOT_DETECTED;
         }
 
-        switch (hack.getMode()) {
-            case METEOR -> {
-                if (lower.contains(lowerKey) || (lower.contains("meteor") && !lower.equals(lowerFallback))) {
-                    return HackResult.DETECTED;
-                }
-            }
-            case KEYBIND, TRANSLATE -> {
-                if (!lower.equals(lowerFallback) && !lower.equals(lowerKey)) {
-                    return HackResult.DETECTED;
-                }
-            }
+        // If line contains fallback or key, it's clean
+        if (clean.contains(lowerFallback) || clean.contains(lowerKey)) {
+            return HackResult.NOT_DETECTED;
         }
 
-        return HackResult.NOT_DETECTED;
+        // If line contains untranslated prefixes, client does not have mod translation
+        if (clean.startsWith("key.") || clean.startsWith("text.") || clean.startsWith("gui.")
+                || clean.startsWith("title.") || clean.startsWith("emc.") || clean.startsWith("baritone.")
+                || clean.equals(hack.getId().toLowerCase()) || clean.contains(hack.getId().toLowerCase())) {
+            return HackResult.NOT_DETECTED;
+        }
+
+        // Also check if rawLine contains fallback or key
+        String lowerRaw = rawLine.toLowerCase();
+        if (lowerRaw.contains(lowerFallback) || lowerRaw.contains(lowerKey)) {
+            return HackResult.NOT_DETECTED;
+        }
+
+        return HackResult.DETECTED;
     }
 
     private void cleanupSign(ActiveCheckData data) {
@@ -471,15 +611,28 @@ public class FalconCheckerManager {
                 LegacyComponentSerializer.legacyAmpersand().deserialize("&c&m---------------------------------"));
     }
 
-    // ─── Punishment & Notifications ──────────────────────────────────────
 
     public void flagCheat(Player player, String cheatName, String detectionSource) {
+        if (player == null || isBedrockPlayer(player)) {
+            if (player != null) {
+                debug("Player " + player.getName() + " was reported for " + cheatName + " but is a Bedrock/Geyser player — ignoring.");
+                finishCheck(player.getUniqueId());
+            }
+            return;
+        }
+
         if (channelDetector != null) {
             channelDetector.recordDetectedCheat(player.getUniqueId(), cheatName, detectionSource);
         }
 
         if (player.hasPermission("falcon.checker.bypass") || player.hasPermission("falcon.signprobe.bypass")) {
             debug("Player " + player.getName() + " flagged for " + cheatName + " but has bypass.");
+            return;
+        }
+
+        if (!actionedPlayers.add(player.getUniqueId())) {
+            debug("Player " + player.getName() + " already actioned, skipping duplicate broadcast/action for " + cheatName);
+            finishCheck(player.getUniqueId());
             return;
         }
 
@@ -491,6 +644,10 @@ public class FalconCheckerManager {
             executeAction(player, cheatName, detectionSource);
         }
         finishCheck(player.getUniqueId());
+    }
+
+    public void clearActioned(UUID uuid) {
+        actionedPlayers.remove(uuid);
     }
 
     public void executeAction(Player player, String modName) {

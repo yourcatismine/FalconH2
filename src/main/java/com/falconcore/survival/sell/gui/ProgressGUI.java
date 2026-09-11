@@ -215,7 +215,7 @@ public class ProgressGUI
         event.setCancelled(true);
         int slot = event.getRawSlot();
         if (slot < 54 && (clickedItem = event.getCurrentItem()) != null && clickedItem.getType() != Material.AIR) {
-            player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.0f);
+            player.playSound(player.getLocation(), this.plugin.getSound("button-click", Sound.UI_BUTTON_CLICK), 1.0f, 1.0f);
         }
         int backButtonSlot = this.plugin.getGUIManager().getBackButtonSlot();
         if (event.getRawSlot() == backButtonSlot) {

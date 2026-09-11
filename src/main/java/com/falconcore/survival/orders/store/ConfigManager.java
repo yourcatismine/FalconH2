@@ -21,6 +21,7 @@ import org.bukkit.plugin.Plugin;
 public class ConfigManager {
     private final Plugin plugin;
     private FileConfiguration cfg;
+    private FileConfiguration messagesConfig;
     private final Set<String> disabledTokens = new HashSet<>();
     private final Set<String> lockedWorlds = new HashSet<>();
 
@@ -37,6 +38,7 @@ public class ConfigManager {
             plugin.saveResource("economy/orders/config.yml", false);
         }
         this.cfg = YamlConfiguration.loadConfiguration(configFile);
+        this.loadMessagesConfig();
 
         this.loadDisabled();
         this.loadLockedWorlds();
@@ -45,8 +47,25 @@ public class ConfigManager {
     public void reload() {
         File configFile = new File(plugin.getDataFolder(), "economy/orders/config.yml");
         this.cfg = YamlConfiguration.loadConfiguration(configFile);
+        this.loadMessagesConfig();
         this.loadDisabled();
         this.loadLockedWorlds();
+    }
+
+    private void loadMessagesConfig() {
+        File messagesFile = new File(plugin.getDataFolder(), "messages/economy/order.yml");
+        if (!messagesFile.exists()) {
+            messagesFile.getParentFile().mkdirs();
+            plugin.saveResource("messages/economy/order.yml", false);
+        }
+        this.messagesConfig = YamlConfiguration.loadConfiguration(messagesFile);
+        if (this.cfg != null && this.messagesConfig != null) {
+            this.cfg.setDefaults(this.messagesConfig);
+        }
+    }
+
+    public FileConfiguration getMessagesConfig() {
+        return this.messagesConfig;
     }
 
     private void loadDisabled() {

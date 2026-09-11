@@ -12,24 +12,36 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
+import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.File;
 import java.text.DecimalFormat;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 public class BalanceCommand implements CommandExecutor, TabCompleter {
 
     private final Falcon plugin;
     private static final DecimalFormat DF = new DecimalFormat("#.#");
+    private FileConfiguration config;
+    private File configFile;
 
     public BalanceCommand(Falcon plugin) {
         this.plugin = plugin;
+        loadConfig();
+    }
+
+    public void loadConfig() {
+        configFile = new File(plugin.getDataFolder(), "messages/economy/balance.yml");
+        if (!configFile.exists()) {
+            plugin.saveResource("messages/economy/balance.yml", false);
+        }
+        config = YamlConfiguration.loadConfiguration(configFile);
     }
 
     @Override
@@ -37,7 +49,8 @@ public class BalanceCommand implements CommandExecutor, TabCompleter {
             @NotNull String[] args) {
         if (args.length == 0) {
             if (!(sender instanceof Player)) {
-                sender.sendMessage(ChatColor.RED + "Console must specify a player.");
+                String consoleMsg = getMessage("console-must-specify-player", "&cConsole must specify a player.");
+                sender.sendMessage(ChatColor.translateAlternateColorCodes('&', consoleMsg));
                 return true;
             }
             Player player = (Player) sender;
@@ -54,14 +67,16 @@ public class BalanceCommand implements CommandExecutor, TabCompleter {
 
                     if (!offlinePlayer.hasPlayedBefore() && !offlinePlayer.isOnline()) {
                         plugin.getSchedulerAdapter().runTask(() -> {
-                            String errorMsg = ChatColor.translateAlternateColorCodes('&',
-                                    "&cThat player does not exist.");
-                            sender.sendMessage(errorMsg);
+                            String errorMsg = formatText(getMessage("player-not-found", "&cThat player does not exist."), targetName, 0);
+                            if (!errorMsg.isEmpty()) {
+                                sender.sendMessage(errorMsg);
+                            }
                             if (sender instanceof Player) {
                                 Player p = (Player) sender;
-                                p.spigot().sendMessage(ChatMessageType.ACTION_BAR,
-                                        TextComponent.fromLegacyText(errorMsg));
-                                p.playSound(p.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
+                                if (isActionBarEnabled() && !errorMsg.isEmpty()) {
+                                    p.spigot().sendMessage(ChatMessageType.ACTION_BAR, TextComponent.fromLegacyText(errorMsg));
+                                }
+                                playConfigSound(p, "player-not-found");
                             }
                         });
                         return;
@@ -106,18 +121,78 @@ public class BalanceCommand implements CommandExecutor, TabCompleter {
     }
 
     private void sendMessages(CommandSender sender, String playerName, double balance, boolean isSelf) {
-        String moneyFormatted = formatNumber(balance);
-        String msg;
-        if (isSelf) {
-            msg = ChatColor.translateAlternateColorCodes('&', "&7You have &a$" + moneyFormatted);
-        } else {
-            msg = ChatColor.translateAlternateColorCodes('&', "&d" + playerName + "&7 has &a$" + moneyFormatted);
+        String template = isSelf
+                ? getMessage("balance-self", "&7You have &a${balance}")
+                : getMessage("balance-other", "&d{player}&7 has &a${balance}");
+
+        String chatMsg = formatText(template, playerName, balance);
+        if (!chatMsg.isEmpty()) {
+            sender.sendMessage(chatMsg);
         }
 
-        sender.sendMessage(msg);
         if (sender instanceof Player) {
-            ((Player) sender).spigot().sendMessage(ChatMessageType.ACTION_BAR, TextComponent.fromLegacyText(msg));
+            Player p = (Player) sender;
+            if (isActionBarEnabled() && !chatMsg.isEmpty()) {
+                p.spigot().sendMessage(ChatMessageType.ACTION_BAR, TextComponent.fromLegacyText(chatMsg));
+            }
         }
+    }
+
+    private String getMessage(String path, String def) {
+        if (config == null) return def;
+        String msg = config.getString("messages." + path);
+        if (msg == null) {
+            msg = config.getString("messages." + path.replace("-", "_"));
+        }
+        if (msg == null) {
+            msg = config.getString("messages." + path.replace("_", "-"));
+        }
+        return msg != null ? msg : def;
+    }
+
+    private boolean isActionBarEnabled() {
+        if (config == null) return true;
+        return config.getBoolean("action-bar.enabled", true);
+    }
+
+    private void playConfigSound(Player player, String soundPath) {
+        if (config == null || player == null) return;
+        String basePath = "sounds." + soundPath;
+        if (!config.contains(basePath)) {
+            basePath = "sounds." + soundPath.replace("-", "_");
+        }
+        if (!config.getBoolean(basePath + ".enabled", false)) {
+            return;
+        }
+
+        String soundName = config.getString(basePath + ".sound");
+        if (soundName == null || soundName.trim().isEmpty()) {
+            return;
+        }
+
+        float volume = (float) config.getDouble(basePath + ".volume", 1.0);
+        float pitch = (float) config.getDouble(basePath + ".pitch", 1.0);
+
+        try {
+            Sound sound = Sound.valueOf(soundName.toUpperCase());
+            player.playSound(player.getLocation(), sound, volume, pitch);
+        } catch (IllegalArgumentException e) {
+            try {
+                player.playSound(player.getLocation(), soundName.toLowerCase(), volume, pitch);
+            } catch (Exception ignored) {
+                plugin.getLogger().warning("[Balance] Unknown sound: " + soundName);
+            }
+        }
+    }
+
+    private String formatText(String template, String playerName, double balance) {
+        if (template == null || template.isEmpty()) return "";
+        String moneyFormatted = formatNumber(balance);
+        String result = template
+                .replace("{player}", playerName != null ? playerName : "")
+                .replace("{balance}", moneyFormatted)
+                .replace("{raw_balance}", String.valueOf(balance));
+        return ChatColor.translateAlternateColorCodes('&', result);
     }
 
     private String formatNumber(double number) {

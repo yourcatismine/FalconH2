@@ -18,10 +18,6 @@ import org.bukkit.event.player.PlayerQuitEvent;
 
 import java.util.UUID;
 
-/**
- * Listens for Bukkit SignChangeEvent and PacketEvents UPDATE_SIGN packets
- * to catch responses from probed clients.
- */
 public class FalconCheckerListener implements Listener {
 
     private final FalconCheckerManager manager;
@@ -36,6 +32,11 @@ public class FalconCheckerListener implements Listener {
     public void onSignChange(SignChangeEvent event) {
         Player player = event.getPlayer();
         UUID uuid = player.getUniqueId();
+
+        if (FalconCheckerManager.isBedrockPlayer(player)) {
+            manager.finishCheck(uuid);
+            return;
+        }
 
         if (!manager.isChecking(uuid)) return;
 
@@ -59,6 +60,10 @@ public class FalconCheckerListener implements Listener {
                     Player player = getBukkitPlayer(event);
                     if (player != null) {
                         UUID uuid = player.getUniqueId();
+                        if (FalconCheckerManager.isBedrockPlayer(player)) {
+                            manager.finishCheck(uuid);
+                            return;
+                        }
                         if (manager.isChecking(uuid)) {
                             try {
                                 WrapperPlayClientUpdateSign wrapper = new WrapperPlayClientUpdateSign(event);
@@ -102,13 +107,17 @@ public class FalconCheckerListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR)
     public void onPlayerJoin(org.bukkit.event.player.PlayerJoinEvent event) {
         Player player = event.getPlayer();
+        if (FalconCheckerManager.isBedrockPlayer(player)) {
+            manager.debug("Player " + player.getName() + " is a Bedrock/Geyser player — skipping auto check on join.");
+            return;
+        }
         if (manager.getConfig().getBoolean("auto-check-on-join.enabled", true)) {
-            manager.debug("Player " + player.getName() + " joined — queuing auto sign checker in 20 ticks...");
+            manager.debug("Player " + player.getName() + " joined — queuing auto key check in 40 ticks...");
             manager.getPlugin().getSchedulerAdapter().runEntityTaskLater(player, () -> {
                 if (player.isOnline()) {
                     manager.startCheck(player, null, "Join");
                 }
-            }, 20L);
+            }, 40L);
         }
     }
 
@@ -116,12 +125,14 @@ public class FalconCheckerListener implements Listener {
     public void onQuit(PlayerQuitEvent event) {
         UUID uuid = event.getPlayer().getUniqueId();
         manager.finishCheck(uuid);
+        manager.clearActioned(uuid);
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onKick(PlayerKickEvent event) {
         UUID uuid = event.getPlayer().getUniqueId();
         manager.finishCheck(uuid);
+        manager.clearActioned(uuid);
     }
 
     public void cleanup() {

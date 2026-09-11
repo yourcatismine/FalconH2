@@ -1,0 +1,10 @@
+# ============================================================
+# Available Placeholders:
+#   {player}    - Player name
+# ============================================================
+
+messages:
+  discord-link: "&fJoin our discord: &ahttps://discord.gg/yourserver"
+
+sounds:
+  none: ""

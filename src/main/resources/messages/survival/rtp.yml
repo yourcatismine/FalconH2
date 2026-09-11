@@ -1,0 +1,10 @@
+# ============================================================
+# Available Placeholders:
+#   {player}    - Player name
+# ============================================================
+
+messages:
+  only-players: "&cOnly players can use this command."
+
+sounds:
+  click: "BLOCK_TRIPWIRE_CLICK_ON"
