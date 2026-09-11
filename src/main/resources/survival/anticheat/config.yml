@@ -1,0 +1,41 @@
+# ==============================================================================
+#                      FALCON ANTICHEAT - CORE CONFIGURATION
+# ==============================================================================
+
+# Master toggle for the entire AntiCheat system
+enabled: true
+
+# Staff in-game notification & alert settings
+alerts:
+  # Master toggle for staff in-game alerts
+  # If false, NO staff in-game alerts will be sent, even to OPs or staff with permission
+  enabled: true
+
+  # Permission required to receive staff detection alerts
+  permission: "falcon.anticheat.alerts"
+
+  # Minimum cooldown between alerts for the same player (in milliseconds)
+  cooldown-ms: 600
+
+# General settings
+debug: false
+ignore-bedrock: true
+bypass-permission: "falcon.anticheat.bypass"
+
+# Violation Level (VL) decay settings
+violations:
+  decay-amount: 1.0
+  decay-ticks: 60
+
+# Environmental and action grace durations (in ticks, 20 ticks = 1 second)
+grace-ticks:
+  velocity: 8
+  teleport: 40
+  respawn: 60
+  world-change: 60
+
+# Automated punishment settings
+punishment:
+  enabled: false
+  commands:
+    - "kick %player% [Falcon AntiCheat] Unfair Advantage (%check% - %type%)"

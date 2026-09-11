@@ -35,6 +35,8 @@ public class DiscordWebhookManager {
     private final String ordersWebhook;
     private final boolean spawnerEnabled;
     private final String  spawnerWebhook;
+    private final boolean anticheatEnabled;
+    private final String  anticheatWebhook;
 
     private final String serverIconUrl;
 
@@ -60,6 +62,9 @@ public class DiscordWebhookManager {
         spawnerEnabled  = cfg.getBoolean("discord-webhooks.spawner.enabled", false);
         spawnerWebhook  = cfg.getString("discord-webhooks.spawner.webhook-url", "");
 
+        anticheatEnabled = cfg.getBoolean("discord-webhooks.anticheat.enabled", true);
+        anticheatWebhook = cfg.getString("discord-webhooks.anticheat.webhook-url", "");
+
         serverIconUrl   = cfg.getString("discord-webhooks.server-icon-url", "");
     }
 
@@ -83,6 +88,11 @@ public class DiscordWebhookManager {
         if (!deathEnabled || deathWebhook.isEmpty()) return;
         String clean = stripColor(deathMessage);
         sendEmbed(deathWebhook, playerName, uuid, clean, COLOR_DEATH, "Death");
+    }
+
+    public void sendAntiCheatAlert(String playerName, String uuid, String title, String description, int color) {
+        if (!anticheatEnabled || anticheatWebhook == null || anticheatWebhook.isEmpty()) return;
+        sendEmbed(anticheatWebhook, playerName, uuid, description, color, title);
     }
 
 

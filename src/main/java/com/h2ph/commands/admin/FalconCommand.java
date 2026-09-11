@@ -490,6 +490,10 @@ public class FalconCommand implements CommandExecutor, TabCompleter {
                 plugin.getAuctionController().reloadAllConfigs();
             }
 
+            if (plugin.getAntiCheatManager() != null) {
+                plugin.getAntiCheatManager().reload();
+            }
+
 
             long time = System.currentTimeMillis() - start;
 

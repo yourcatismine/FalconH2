@@ -1,0 +1,76 @@
+# ─────────────────────────────────────────────────────────────
+# FalconCore - AntiCheat: Fly Detection Configuration
+# ─────────────────────────────────────────────────────────────
+
+# Enable or disable Fly check
+enabled: true
+
+# Violation Level (VL) configuration for Fly
+violations:
+  # Minimum VL before sending staff alerts
+  alert-threshold: 2.0
+  # Maximum VL before executing punishment
+  punishment-threshold: 20.0
+
+# Setback (Rubberband) configuration
+setback:
+  # Teleport player back to their last valid ground position on violation
+  enabled: true
+  # Minimum VL before setback starts applying
+  min-vl: 1.0
+
+# Sub-Check Configurations
+subchecks:
+  # Type A: Air Hover / Zero Vertical Delta
+  # Detects players hovering in mid-air with near-zero deltaY without blocks below
+  type-a:
+    enabled: true
+    min-air-ticks: 6
+    max-delta-y: 0.005
+    vl-increment: 1.5
+
+  # Type B: Gravity / Invalid Fall Acceleration
+  # Detects invalid vertical motion curves (ignoring gravity: deltaY = (lastDeltaY - 0.08) * 0.98)
+  type-b:
+    enabled: true
+    min-air-ticks: 4
+    tolerance: 0.045
+    vl-increment: 1.5
+
+  # Type C: High Jump / Cumulative Ascent Limit
+  # Detects upward movement or total airborne ascent exceeding standard jump trajectory (0.42 + jump_boost)
+  type-c:
+    enabled: true
+    max-jump-height: 1.35
+    vl-increment: 2.5
+
+  # Type D: Ground Spoof
+  # Detects client packets sending onGround = true while floating in air
+  type-d:
+    enabled: true
+    min-air-distance: 0.5
+    vl-increment: 2.5
+
+  # Type E: Mid-Air Ascent / Jetpack
+  # Detects mid-air acceleration or prolonged ascent
+  type-e:
+    enabled: true
+    min-air-ticks: 3
+    vl-increment: 2.0
+
+  # Type F: Glide / Slow Fall Spoof
+  # Detects slow descending without Slow Falling potion effect or Elytra
+  type-f:
+    enabled: true
+    min-fall-ticks: 15
+    min-glide-speed: -0.15
+    max-glide-speed: -0.01
+    vl-increment: 1.5
+
+  # Type G: Air Jump / Multi Jump
+  # Detects jump initiation while already airborne without touching solid ground
+  type-g:
+    enabled: true
+    min-air-ticks: 2
+    min-jump-delta-y: 0.15
+    vl-increment: 3.0

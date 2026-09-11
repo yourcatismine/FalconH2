@@ -1,0 +1,67 @@
+# ─────────────────────────────────────────────────────────────
+# FalconCore - AntiCheat: Speed Detection Configuration
+# ─────────────────────────────────────────────────────────────
+
+# Enable or disable Speed check
+enabled: true
+
+# Violation Level (VL) configuration for Speed
+violations:
+  # Minimum VL before sending staff alerts
+  alert-threshold: 2.0
+  # Maximum VL before punishment
+  punishment-threshold: 25.0
+
+# Setback (Rubberband) configuration
+setback:
+  # Teleport player back to their last valid ground position on violation
+  enabled: true
+  # Minimum VL before setback starts applying
+  min-vl: 1.0
+
+# Sub-Check Configurations
+subchecks:
+  # Type A: Ground Speed
+  # Detects excessive horizontal movement speed on flat ground (Sprint max ~0.286 m/t + potions)
+  type-a:
+    enabled: true
+    max-base-speed: 0.287
+    sprint-jump-buffer: 0.35
+    vl-increment: 1.5
+
+  # Type B: Air Speed / Bunny-Hop
+  # Detects airborne acceleration exceeding air friction deceleration (deltaXZ <= lastDeltaXZ * 0.91 + strafe)
+  type-b:
+    enabled: true
+    air-friction: 0.91
+    max-strafe-accel: 0.035
+    vl-increment: 2.0
+
+  # Type C: Ice / Low-Ceiling Speed
+  # Detects speed on ice blocks (Ice, Packed Ice, Blue Ice, Frosted Ice)
+  type-c:
+    enabled: true
+    max-ice-speed: 1.25
+    vl-increment: 1.5
+
+  # Type D: Sneak / NoSlow Item Use Speed
+  # Detects moving at normal/sprint speeds while sneaking or using items (eating, blocking, drawing bow)
+  type-d:
+    enabled: true
+    max-sneak-speed: 0.15
+    max-using-item-speed: 0.16
+    vl-increment: 2.0
+
+  # Type E: Water / Liquid Speed / Jesus
+  # Detects moving faster than normal swim speeds without Depth Strider / Dolphin's Grace
+  type-e:
+    enabled: true
+    max-water-speed: 0.22
+    vl-increment: 1.5
+
+  # Type F: Omni-Sprint (Directional Speed)
+  # Detects sprinting sideways or backwards (angle deviation > 65 degrees from look direction)
+  type-f:
+    enabled: true
+    max-angle-deviation: 65.0
+    vl-increment: 1.5

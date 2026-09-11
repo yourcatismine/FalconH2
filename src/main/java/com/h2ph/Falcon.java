@@ -106,8 +106,13 @@ public class Falcon extends JavaPlugin {
     private com.h2ph.listeners.MotdListener MotdListener;
     private com.h2ph.managers.DiscordManager discordManager;
     private com.h2ph.checker.FalconCheckerManager checkerManager;
+    private com.falconcore.anticheat.AntiCheatManager antiCheatManager;
     private boolean luckPermsEnabled = false;
     
+    public com.falconcore.anticheat.AntiCheatManager getAntiCheatManager() {
+        return antiCheatManager;
+    }
+
     public com.falconcore.survival.manager.DiscordWebhookManager getDiscordWebhookManager() {
         return discordWebhookManager;
     }
@@ -646,6 +651,8 @@ public class Falcon extends JavaPlugin {
             getCommand("checker").setExecutor(checkerCmd);
             getCommand("checker").setTabCompleter(checkerCmd);
         }
+
+        this.antiCheatManager = new com.falconcore.anticheat.AntiCheatManager(this);
 
         getCommand("stats").setExecutor(new com.h2ph.commands.player.StatsCommand(this));
 
@@ -1194,6 +1201,16 @@ public class Falcon extends JavaPlugin {
         saveResourceSafely("messages/moderation/gamemode.yml");
         saveResourceSafely("messages/moderation/hidename.yml");
 
+        // Anticheat configs and messages
+        saveResourceSafely("messages/anticheat/fly/messages.yml");
+        saveResourceSafely("messages/anticheat/speed/messages.yml");
+        saveResourceSafely("anticheat/fly/config.yml");
+        saveResourceSafely("anticheat/speed/config.yml");
+        saveResourceSafely("survival/messages/anticheat/fly/messages.yml");
+        saveResourceSafely("survival/messages/anticheat/speed/messages.yml");
+        saveResourceSafely("survival/anticheat/fly/config.yml");
+        saveResourceSafely("survival/anticheat/speed/config.yml");
+
         java.io.File queueFolder = new java.io.File(getDataFolder(), "rtp/queue");
         if (!queueFolder.exists()) {
             queueFolder.mkdirs();
@@ -1571,6 +1588,14 @@ public class Falcon extends JavaPlugin {
         } else {
             console.sendMessage(
                     org.bukkit.ChatColor.translateAlternateColorCodes('&', "&b  [-] &fClient & Cheat Checker: &c&lOFFLINE"));
+        }
+
+        if (antiCheatManager != null && antiCheatManager.isEnabled()) {
+            console.sendMessage(
+                    org.bukkit.ChatColor.translateAlternateColorCodes('&', "&b  [+] &fFalcon AntiCheat (Fly): &a&lONLINE"));
+        } else {
+            console.sendMessage(
+                    org.bukkit.ChatColor.translateAlternateColorCodes('&', "&b  [-] &fFalcon AntiCheat: &c&lOFFLINE"));
         }
 
         console.sendMessage(org.bukkit.ChatColor.translateAlternateColorCodes('&',

@@ -375,6 +375,11 @@ commands:
     permission: falcon.checker
     aliases: []
 
+  anticheat:
+    description: Falcon AntiCheat management and alerts
+    usage: /anticheat <alerts|info|reset|checks|reload> [player]
+    aliases: [ac]
+
   invsee:
     description: View another player's inventory
     usage: /invsee <player>
@@ -583,3 +588,15 @@ permissions:
   falcon.signprobe:
     description: Permission to use /checker (legacy alias)
     default: op
+
+  falcon.anticheat.admin:
+    description: Permission to manage Falcon AntiCheat
+    default: op
+
+  falcon.anticheat.alerts:
+    description: Permission to receive Falcon AntiCheat violation alerts
+    default: op
+
+  falcon.anticheat.bypass:
+    description: Permission to bypass Falcon AntiCheat checks
+    default: false
